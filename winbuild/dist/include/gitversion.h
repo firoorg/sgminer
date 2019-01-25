@@ -1,0 +1,1 @@
+#define USE_GIT_VERSION 1 
