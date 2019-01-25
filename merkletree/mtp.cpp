@@ -20,11 +20,10 @@
 static const unsigned int d_mtp = 1;
 static const uint8_t L = 64;
 static const unsigned int memory_cost = memcost;
-extern void get_tree(int thr_id,uint8_t *d){};
-extern uint8_t* get_tree2(int thr_id){};
+
 //extern void get_argon_block(int thr_id, void* d, uint32_t index){};
 //extern void get_argon_block(int thr_id, void* clblock, uint32_t index);
-extern void get_argon_block(cl_command_queue Queue,cl_mem block, uint8_t* clblock,  uint32_t index);
+extern void get_argon_block(cl_command_queue Queue,cl_mem block, cl_mem block2, uint8_t* clblock,  uint32_t index);
 uint32_t index_beta(const argon2_instance_t *instance,
 	const argon2_position_t *position, uint32_t pseudo_rand,
 	int same_lane) {
@@ -130,7 +129,7 @@ void getargon_blockindex_orig(uint32_t ij, argon2_instance_t *instance, uint32_t
 }
 
 
-void getargon_blockindex(int thr_id, cl_command_queue Queue, cl_mem block, uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_argon_block)
+void getargon_blockindex(int thr_id, cl_command_queue Queue, cl_mem block, cl_mem block2, uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_argon_block)
 {
 	uint32_t ij_prev = 0;
 	if (ij%instance->lane_length == 0)
@@ -142,7 +141,7 @@ void getargon_blockindex(int thr_id, cl_command_queue Queue, cl_mem block, uint3
 		ij_prev = ij - 1;
 
 	argon_block b;
-	get_argon_block(/*thr_id,*/Queue,block, (uint8_t*)&b.v, ij_prev);
+	get_argon_block(/*thr_id,*/Queue,block, block2, (uint8_t*)&b.v, ij_prev);
 	uint64_t prev_argon_block_opening = b.v[0];//instance->memory[ij_prev].v[0];
 	uint32_t ref_lane = (uint32_t)((prev_argon_block_opening >> 32) % instance->lanes);
 
@@ -657,7 +656,7 @@ MerkleTree TheTree,uint32_t* input, uint256 hashTarget) {
 
 
 
-int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, uint32_t TheNonce, argon2_instance_t *instance,
+int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, cl_mem clblock2, uint32_t TheNonce, argon2_instance_t *instance,
 	argon_blockS *nargon_blockMTP /*[72 * 2][128]*/, unsigned char* nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 	MerkleTree TheTree, uint32_t* input, uint256 hashTarget) {
 
@@ -697,17 +696,17 @@ int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, uint32_t TheN
 
 			uint32_t prev_index;
 			uint32_t ref_index;
-			getargon_blockindex(thr_id, Queue, clblock, ij, instance, &prev_index, &ref_index);
+			getargon_blockindex(thr_id, Queue, clblock, clblock2, ij, instance, &prev_index, &ref_index);
 
 			//			copy_argon_blockS(&nargon_blockMTP[j * 2 - 2], &instance->memory[prev_index]);
-			get_argon_block(/*thr_id,*/Queue,clblock, (uint8_t*)nargon_blockMTP[j * 2 - 2].v, prev_index);
+			get_argon_block(/*thr_id,*/Queue,clblock, clblock2, (uint8_t*)nargon_blockMTP[j * 2 - 2].v, prev_index);
 			//ref argon_block
 			//			copy_argon_blockS(&nargon_blockMTP[j * 2 - 1], &instance->memory[ref_index]);
-			get_argon_block(/*thr_id,*/Queue, clblock, (uint8_t*)nargon_blockMTP[j * 2 - 1].v, ref_index);
+			get_argon_block(/*thr_id,*/Queue, clblock, clblock2, (uint8_t*)nargon_blockMTP[j * 2 - 1].v, ref_index);
 			argon_block argon_blockhash;
 			uint8_t argon_blockhash_bytes[ARGON2_argon_block_SIZE];
 			//			copy_argon_block(&argon_blockhash, &instance->memory[ij]);
-			get_argon_block(/*thr_id,*/Queue, clblock, (uint8_t*)&argon_blockhash.v, ij);
+			get_argon_block(/*thr_id,*/Queue, clblock, clblock2, (uint8_t*)&argon_blockhash.v, ij);
 
 
 			store_argon_block(&argon_blockhash_bytes, &argon_blockhash);
@@ -726,7 +725,7 @@ int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, uint32_t TheN
 			argon_block argon_blockhash_curr;
 			uint8_t argon_blockhash_curr_bytes[ARGON2_argon_block_SIZE];
 			//			copy_argon_block(&argon_blockhash_curr, &instance->memory[ij]);
-			get_argon_block(/*thr_id,*/Queue, clblock, (uint8_t*)&argon_blockhash_curr.v, ij);
+			get_argon_block(/*thr_id,*/Queue, clblock, clblock2, (uint8_t*)&argon_blockhash_curr.v, ij);
 			store_argon_block(&argon_blockhash_curr_bytes, &argon_blockhash_curr);
 			ablake2b_state state_curr;
 			ablake2b_init(&state_curr, MERKLE_TREE_ELEMENT_SIZE_B);
@@ -753,7 +752,7 @@ int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, uint32_t TheN
 			argon_block argon_blockhash_prev;
 			uint8_t argon_blockhash_prev_bytes[ARGON2_argon_block_SIZE];
 			//			copy_argon_block(&argon_blockhash_prev, &instance->memory[prev_index]);
-			get_argon_block(/*thr_id,*/Queue, clblock, (uint8_t*)&argon_blockhash_prev.v, prev_index);
+			get_argon_block(/*thr_id,*/Queue, clblock, clblock2, (uint8_t*)&argon_blockhash_prev.v, prev_index);
 			store_argon_block(&argon_blockhash_prev_bytes, &argon_blockhash_prev);
 			ablake2b_state state_prev;
 			ablake2b_init(&state_prev, MERKLE_TREE_ELEMENT_SIZE_B);
@@ -784,7 +783,7 @@ int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, uint32_t TheN
 			argon_block argon_blockhash_ref;
 			uint8_t argon_blockhash_ref_bytes[ARGON2_argon_block_SIZE];
 			//			copy_argon_block(&argon_blockhash_ref, &instance->memory[ref_index]);
-			get_argon_block(/*thr_id,*/Queue, clblock, (uint8_t*)&argon_blockhash_ref.v, ref_index);
+			get_argon_block(/*thr_id,*/Queue, clblock, clblock2, (uint8_t*)&argon_blockhash_ref.v, ref_index);
 			store_argon_block(&argon_blockhash_ref_bytes, &argon_blockhash_ref);
 			ablake2b_state state_ref;
 			ablake2b_init(&state_ref, MERKLE_TREE_ELEMENT_SIZE_B);
@@ -920,7 +919,7 @@ void  mtp_init3(argon2_instance_t *instance, int thr_id, MerkleTree &ThatTree) {
 //	get_tree(thr_id);
 	printf("Step 2 : Compute the root Φ of the Merkle hash tree \n");
 
-	ThatTree = MerkleTree(get_tree2(thr_id),true);
+//	ThatTree = MerkleTree(get_tree2(thr_id),true);
 //	ThatTree = TheTree;
 //	free(mem);
 }

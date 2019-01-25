@@ -58,7 +58,7 @@ void mtp_hash(char* output, const char* input, unsigned int d, uint32_t TheNonce
 argon2_context init_argon2d_param(const char* input);
 void getargon_blockindex_orig(uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_argon_block);
 
-void getargon_blockindex(int thr_id, cl_command_queue Queue, cl_mem block, uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_argon_block);
+void getargon_blockindex(int thr_id, cl_command_queue Queue, cl_mem block, cl_mem block2, uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_argon_block);
 
 
 //int mtp_solver_withargon_block(uint32_t TheNonce, argon2_instance_t *instance, unsigned int d, argon_block_mtpProof *output,
@@ -68,7 +68,7 @@ int mtp_solver_orig(uint32_t TheNonce, argon2_instance_t *instance,
 	argon_blockS *nargon_blockMTP /*[72 * 2][128]*/, unsigned char *nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
 
-int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, uint32_t TheNonce, argon2_instance_t *instance,
+int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, cl_mem clblock2, uint32_t TheNonce, argon2_instance_t *instance,
 	argon_blockS *nargon_blockMTP /*[72 * 2][128]*/, unsigned char *nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
 

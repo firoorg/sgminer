@@ -565,6 +565,7 @@ typedef struct _mtp_gpu_t {
 	cglock_t lock;
 	char* prev_job_id;
 	cl_mem hblock;
+	cl_mem hblock2;
 	cl_mem blockheader;
     cl_mem tree; // dx
 	cl_mem root;

@@ -615,7 +615,7 @@ static unsigned warp_id()
 #define TPB_MTP 256
 
 __attribute__((reqd_work_group_size(TPB_MTP, 1, 1)))
-__kernel void mtp_yloop(__global unsigned int* pData, __global const uint4  * __restrict__ DBlock,
+__kernel void mtp_yloop(__global unsigned int* pData, __global const uint4  * __restrict__ DBlock, __global const uint4  * __restrict__ DBlock2,
 __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint pTarget)
 {
 //if (get_global_id(0)==0)
@@ -629,7 +629,7 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 	int warp = get_local_id(0) / 8;;//warp_id();
 	__local  ulong2 far[TPB_MTP / 8][8 * (8 + SHR_OFF)];
 	__local  uint32_t farIndex[TPB_MTP / 8][8];
-
+	const uint32_t half_memcost = 2 * 1024 * 1024;
 	 const uint64_t lblakeFinal[8] =
 	{
 		0x6a09e667f2bdc928UL,
@@ -642,6 +642,7 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 		0x5be0cd19137e2179UL, 
 	};
 		__global const ulong2 *	 __restrict__ GBlock = &((__global ulong2*)DBlock)[0];
+		__global const ulong2 *	 __restrict__ GBlock2 = &((__global ulong2*)DBlock2)[0];
 		uint8 YLocal;
 		uint8 YLocalPrint;
 
@@ -720,7 +721,8 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 					#pragma unroll 
 					for (int t = 0; t<8; t++) {
 
-						__global ulong2 *farP = (__global ulong2*)&GBlock[farIndex[warp][t] * 64 + 0 + 8 * i + 0];
+						__global ulong2 *farP = (farIndex[warp][t]<half_memcost)?  (__global ulong2*)&GBlock[farIndex[warp][t] * 64 + 0 + 8 * i + 0] 
+																				 : (__global ulong2*)&GBlock2[(farIndex[warp][t] - half_memcost) * 64 + 0 + 8 * i + 0];
 
 						far[warp][lane*(8 + SHR_OFF) + (t)] = (last) ? (ulong2)(0, 0) : farP[lane];
 					}
@@ -1019,7 +1021,7 @@ __global struct mem_blk *next_block, int with_xor, uint32_t block_header[8], uin
 
 
 __attribute__((reqd_work_group_size(32, 1, 1)))
-__kernel void mtp_i(__global uint4  *  DBlock,__global uint32_t *block_header, uint32_t slice) {
+__kernel void mtp_i(__global uint4  *  DBlock, __global uint4  *  DBlock2, __global uint32_t *block_header, uint32_t slice) {
 	uint32_t prev_offset, curr_offset;
 
 	uint64_t  ref_index, ref_lane;
@@ -1028,13 +1030,13 @@ __kernel void mtp_i(__global uint4  *  DBlock,__global uint32_t *block_header, u
 	uint32_t lane = get_global_id(0)/32;
 	uint32_t gid = get_global_id(0);
 
-
+	const uint32_t half_memcost = 2 * 1024 * 1024;
 	const uint32_t lane_length = 1048576;
 	const uint32_t segment_length = 262144;
 	const uint32_t lanes = 4;
 	uint32_t index;
 	__global struct mem_blk * memory = (__global struct mem_blk *)DBlock;
-
+	__global struct mem_blk * memory2 = (__global struct mem_blk *)DBlock2;
 	uint32_t tid = (uint32_t)get_local_id(0);
 
 
@@ -1078,7 +1080,7 @@ __kernel void mtp_i(__global uint4  *  DBlock,__global uint32_t *block_header, u
 			prev_offset = curr_offset - 1;
 		}
 
-		uint2  pseudo_rand2 = as_uint2(memory[prev_offset].v[0]);
+		uint2  pseudo_rand2 = (prev_offset<half_memcost)?  as_uint2(memory[prev_offset].v[0]) : as_uint2(memory2[prev_offset-half_memcost].v[0]);
 		ref_lane = ((pseudo_rand2.y)) & 3;
 
 		if ((passs == 0) && (slice == 0)) 
@@ -1089,7 +1091,12 @@ __kernel void mtp_i(__global uint4  *  DBlock,__global uint32_t *block_header, u
  
 		TheBlockIndex = (ref_lane << 20) + ref_index;
 
-		fill_block_withIndex(memory + prev_offset, memory + (ref_lane << 20) + ref_index, &memory[curr_offset], 0, BH, (uint32_t)TheBlockIndex);
+		__global struct mem_blk *  prevblk = (prev_offset<half_memcost)?                            &memory[prev_offset] :		            &memory2[prev_offset - half_memcost];
+		__global struct mem_blk *  refblk = (((ref_lane << 20) + ref_index)<half_memcost)?			&memory[(ref_lane << 20) + ref_index] : &memory2[(ref_lane << 20) + ref_index - half_memcost];
+		__global struct mem_blk *  curblk = (curr_offset<half_memcost)?                             &memory[curr_offset] :		            &memory2[curr_offset - half_memcost];
+
+//		fill_block_withIndex(memory + prev_offset, memory + (ref_lane << 20) + ref_index, &memory[curr_offset], 0, BH, (uint32_t)TheBlockIndex);
+		fill_block_withIndex(prevblk, refblk, curblk, 0, BH, (uint32_t)TheBlockIndex);
 //	if (get_global_id(0) == 0)
 //		printf("index i = %d \n", i);
 	}
@@ -1099,10 +1106,10 @@ __kernel void mtp_i(__global uint4  *  DBlock,__global uint32_t *block_header, u
 
 
 __attribute__((reqd_work_group_size(256, 1, 1)))
-__kernel void mtp_fc(uint32_t threads, __global uint4  *  __restrict__ DBlock, __global uint2 *a) {
+__kernel void mtp_fc(uint32_t threads, __global uint4  *  __restrict__ DBlock, __global uint4  *  __restrict__ DBlock2, __global uint2 *a) {
 
 	uint32_t thread = get_global_id(0);
-
+	const uint32_t half_memcost = 2 * 1024 * 1024;
 	const uint64_t blakeInit2_64[8] =
 	{
 		0x6a09e667f2bdc918UL,
@@ -1118,8 +1125,12 @@ __kernel void mtp_fc(uint32_t threads, __global uint4  *  __restrict__ DBlock, _
 
 
 	if (thread < threads) {
-		__global struct mem_blk * memory = (__global struct mem_blk *)DBlock;
-		__global const uint4 *    __restrict__ GBlock = &DBlock[0];
+
+		__global const uint4 *    __restrict__ GBlock = (thread<half_memcost)? &DBlock[thread*64]:&DBlock2[(thread-half_memcost)*64] ;
+
+
+//		__global const uint4 *    __restrict__ GBlock = &DBlock[0];
+
 		uint32_t len = 0;
 		ulong DataTmp[8];
 		for (int i = 0; i<8; i++)
@@ -1129,10 +1140,10 @@ __kernel void mtp_fc(uint32_t threads, __global uint4  *  __restrict__ DBlock, _
 			//              len += (i&1!=0)? 32:128;
 			len += 128;
 			uint16 DataChunk[2];
-			DataChunk[0].lo = ((__global uint8*)GBlock)[thread * 32 + 4 * i + 0];
-			DataChunk[0].hi = ((__global uint8*)GBlock)[thread * 32 + 4 * i + 1];
-			DataChunk[1].lo = ((__global uint8*)GBlock)[thread * 32 + 4 * i + 2];
-			DataChunk[1].hi = ((__global uint8*)GBlock)[thread * 32 + 4 * i + 3];
+			DataChunk[0].lo = ((__global uint8*)GBlock)[4 * i + 0];
+			DataChunk[0].hi = ((__global uint8*)GBlock)[4 * i + 1];
+			DataChunk[1].lo = ((__global uint8*)GBlock)[4 * i + 2];
+			DataChunk[1].hi = ((__global uint8*)GBlock)[4 * i + 3];
 			ulong DataTmp2[8];
 			blake2b_compress4xv2(DataTmp2, DataTmp, (uint64_t*)DataChunk, len, i == 7);
 			for (int i = 0; i<8; i++)

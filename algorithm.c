@@ -1171,11 +1171,16 @@ static cl_int queue_ethash_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_u
   return status;
 }
 
-void get_argon_block(cl_command_queue Queue, cl_mem block,uint8_t* clblock, uint32_t index)
+void get_argon_block(cl_command_queue Queue, cl_mem block, cl_mem block2, uint8_t* clblock, uint32_t index)
 {
 	size_t TheSize = 128*sizeof(uint64_t);
 	size_t TheOffSet = 128*sizeof(uint64_t)*index;
-	cl_int status = clEnqueueReadBuffer(Queue, block, CL_TRUE, TheOffSet, TheSize, clblock, 0, NULL, NULL);
+	size_t Shift = 2 * 1024 * 1024 * 128 * sizeof(uint64_t);
+	cl_int status;
+if (index < 2 * 1024 * 1024)
+	status = clEnqueueReadBuffer(Queue, block, CL_TRUE, TheOffSet, TheSize, clblock, 0, NULL, NULL);
+else 
+	status = clEnqueueReadBuffer(Queue, block2, CL_TRUE, TheOffSet-Shift, TheSize, clblock, 0, NULL, NULL);
 	if (status != CL_SUCCESS) {
 		applog(LOG_ERR, "reading %d with writing to CLbuffer0.", status);
 	}
@@ -1250,6 +1255,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 			free(mtp->dx);
 	//		delete  mtp->ordered_tree;
 			clReleaseMemObject(buffer->hblock);
+			clReleaseMemObject(buffer->hblock2);
 			clReleaseMemObject(buffer->tree);
 			clReleaseMemObject(buffer->blockheader);
 			clReleaseMemObject(buffer->root);
@@ -1259,13 +1265,30 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 
 
 ////////////
-			size_t hbs = MTP_MEMCOST * 128 * sizeof(uint64_t);
+			size_t hbs_half = 2 * 1024 * 1024 * 128 * sizeof(uint64_t);
+			size_t hbs = 4 * 1024 * 1024 * 128 * sizeof(uint64_t);
+//			size_t hbs = 4244635648;
+/*
 			buffer->hblock		= clCreateBuffer(clState->context, CL_MEM_READ_WRITE , hbs, NULL, &status);
 			if (status != CL_SUCCESS) {
 				buffer->hblock = NULL;
 				applog(LOG_ERR, "Error %d while creating the hblock buffers.", status);
 				return status;
 			}
+*/
+			buffer->hblock = clCreateBuffer(clState->context, CL_MEM_READ_WRITE, hbs_half, NULL, &status);
+			if (status != CL_SUCCESS) {
+				buffer->hblock = NULL;
+				applog(LOG_ERR, "Error %d while creating the hblock buffers.", status);
+				return status;
+			}
+			buffer->hblock2 = clCreateBuffer(clState->context, CL_MEM_READ_WRITE, hbs_half, NULL, &status);
+			if (status != CL_SUCCESS) {
+				buffer->hblock = NULL;
+				applog(LOG_ERR, "Error %d while creating the hblock buffers.", status);
+				return status;
+			}
+
 			size_t ts = sizeof(uint64_t) * 2 * 1048576 * 4;
 			buffer->tree		= clCreateBuffer(clState->context, CL_MEM_READ_WRITE, ts, NULL, &status);
 			if (status != CL_SUCCESS) {
@@ -1314,21 +1337,21 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		if (status != CL_SUCCESS)
 			applog(LOG_ERR, "problem copying instance to hblock", status);
 
-		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock, true, TheOffSet * 2097152, TheSize, (uchar*)mtp->instance.memory[4].v, 0, NULL, NULL);
+		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock2, true, TheOffSet * 2097152 - hbs_half, TheSize, (uchar*)mtp->instance.memory[4].v, 0, NULL, NULL);
 		if (status != CL_SUCCESS)
-			applog(LOG_ERR, "problem copying instance to hblock", status);
+			applog(LOG_ERR, "problem copying instance to hblock2", status);
 
-		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock, true, TheOffSet * 2097153, TheSize, (uchar*)mtp->instance.memory[5].v, 0, NULL, NULL);
+		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock2, true, TheOffSet * 2097153 - hbs_half, TheSize, (uchar*)mtp->instance.memory[5].v, 0, NULL, NULL);
 		if (status != CL_SUCCESS)
-			applog(LOG_ERR, "problem copying instance to hblock", status);
+			applog(LOG_ERR, "problem copying instance to hblock2", status);
 
-		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock, true, TheOffSet * 3145728, TheSize, (uchar*)mtp->instance.memory[6].v, 0, NULL, NULL);
+		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock2, true, TheOffSet * 3145728 - hbs_half, TheSize, (uchar*)mtp->instance.memory[6].v, 0, NULL, NULL);
 		if (status != CL_SUCCESS)
-			applog(LOG_ERR, "problem copying instance to hblock", status);
+			applog(LOG_ERR, "problem copying instance to hblock2", status);
 
-		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock, true, TheOffSet * 3145729, TheSize, (uchar*)mtp->instance.memory[7].v, 0, NULL, NULL);
+		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock2, true, TheOffSet * 3145729 - hbs_half, TheSize, (uchar*)mtp->instance.memory[7].v, 0, NULL, NULL);
 		if (status != CL_SUCCESS)
-			applog(LOG_ERR, "problem copying instance to hblock", status);
+			applog(LOG_ERR, "problem copying instance to hblock2", status);
 
 
 		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->blockheader, true, 0, 32, (uchar*)mtp->instance.argon_block_header, 0, NULL, NULL);
@@ -1342,6 +1365,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		size_t Global = 128;
 		size_t Local = 32;
 		CL_SET_ARG(buffer->hblock);
+		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->blockheader);
 		CL_SET_ARG(slice);
 		status |= clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_0, 1, NULL, &Global, &Local, 0, NULL, NULL);
@@ -1353,6 +1377,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 
 		slice = 1;
 		CL_SET_ARG(buffer->hblock);
+		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->blockheader);
 		CL_SET_ARG(slice);
 		status |= clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_1, 1, NULL, &Global, &Local, 0, NULL, NULL);
@@ -1364,6 +1389,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		kernel = &clState->mtp_2;
 		slice = 2;
 		CL_SET_ARG(buffer->hblock);
+		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->blockheader);
 		CL_SET_ARG(slice);
 		status |= clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_2, 1, NULL, &Global, &Local, 0, NULL, NULL);
@@ -1375,6 +1401,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		kernel = &clState->mtp_3;
 		slice = 3;
 		CL_SET_ARG(buffer->hblock);
+		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->blockheader);
 		CL_SET_ARG(slice);
 		status |= clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_3, 1, NULL, &Global, &Local, 0, NULL, NULL);
@@ -1388,6 +1415,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		slice = 4194304;
 		CL_SET_ARG(slice);
 		CL_SET_ARG(buffer->hblock);
+		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->tree);
 		size_t Global2 = 4194304;
 		size_t Local2 = 256;
@@ -1440,6 +1468,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 	num = 0;
 	CL_SET_ARG(clState->CLbuffer0);
 	CL_SET_ARG(buffer->hblock);
+	CL_SET_ARG(buffer->hblock2);
 	CL_SET_ARG(buffer->root);
 	CL_SET_ARG(clState->outputBuffer);
 	CL_SET_ARG(le_target);
@@ -1462,7 +1491,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 
 		
 
-		uint32_t is_sol = mtp_solver(0, clState->commandQueue, buffer->hblock, Solution[0], 
+		uint32_t is_sol = mtp_solver(0, clState->commandQueue, buffer->hblock, buffer->hblock2, Solution[0],
 		&mtp->instance, nBlockMTP, nProofMTP, mtp->TheMerkleRoot, mtpHashValue, *mtp->ordered_tree, endiandata, TheUint256Target[0]);
 		if (is_sol==1) {
 		memcpy(blk->work->mtpPOW.MerkleRoot, mtp->TheMerkleRoot,16);
