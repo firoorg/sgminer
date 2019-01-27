@@ -1324,7 +1324,7 @@ static bool opencl_thread_prepare(struct thr_info *thr)
 
 static bool opencl_thread_init(struct thr_info *thr)
 {
-applog(LOG_DEBUG, "****************coming to opencl_thread_init *******************");
+
   const int thr_id = thr->id;
   struct cgpu_info *gpu = thr->cgpu;
   struct opencl_thread_data *thrdata;
@@ -1346,7 +1346,7 @@ applog(LOG_DEBUG, "****************coming to opencl_thread_init ****************
     applog(LOG_ERR, "Failed to calloc in opencl_thread_init");
     return false;
   }
-
+if (clState != NULL)
   status |= clEnqueueWriteBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0,
     BUFFERSIZE, blank_res, 0, NULL, NULL);
   if (unlikely(status != CL_SUCCESS)) {
@@ -1359,7 +1359,7 @@ applog(LOG_DEBUG, "****************coming to opencl_thread_init ****************
   gpu->status = LIFE_WELL;
 
   gpu->device_last_well = time(NULL);
-  applog(LOG_DEBUG, "****************leave opencl_thread_init *******************");
+  
   return true;
 }
 

@@ -255,7 +255,7 @@ AM_CONDITIONAL([HAVE_WINDOWS], [test x$have_win32 = xtrue])
 AM_CONDITIONAL([HAVE_x86_64], [test x$have_x86_64 = xtrue])
 
 AC_CONFIG_SUBDIRS([submodules/jansson])
-JANSSON_LIBS="submodules/jansson/src/.libs/libjansson.a"
+JANSSON_LIBS="submodules/jansson/src/.libs/libbosjansson.a"
 
 PKG_PROG_PKG_CONFIG()
 

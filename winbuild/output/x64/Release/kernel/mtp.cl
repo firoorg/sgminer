@@ -3,8 +3,18 @@
 * MTP
 * djm34 2017-2018
 * krnlx 2018
+* djm34 2019
 **/
 
+#define NVIDIA_GPU 0
+#ifdef cl_nv_pragma_unroll
+#define NVIDIA
+#undef NVIDIA_GPU
+#define NVIDIA_GPU 1
+#endif
+
+
+#pragma OPENCL EXTENSION cl_clang_storage_class_specifiers : enable
 typedef unsigned long uint64_t;
 typedef uint uint32_t;
 //typedef unsigned char uint8_t;
@@ -115,37 +125,19 @@ __constant static const uchar blake2b_sigma[12][16] =
 #define SPH_ROTL64(x, n) rotate(as_ulong(x), (n) & 0xFFFFFFFFFFFFFFFFUL)
 #define SPH_ROTR64(x, n) SPH_ROTL64(x, (64 - (n)))
 
-/*__device__ __forceinline__*/
-static inline uint64_t ROTR64X(const uint64_t value, const int offset) {
-// return rotate(value, (ulong)(64 - offset));
-	return SPH_ROTR64(value, offset);
-/*
-	uint2 result;
-	const uint2 tmp = vectorize(value);
 
-	if (offset == 8) {
-		result.x = __byte_perm(tmp.x, tmp.y, 0x4321);
-		result.y = __byte_perm(tmp.y, tmp.x, 0x4321);
-	}
-	else if (offset == 16) {
-		result.x = __byte_perm(tmp.x, tmp.y, 0x5432);
-		result.y = __byte_perm(tmp.y, tmp.x, 0x5432);
-	}
-	else if (offset == 24) {
-		result.x = __byte_perm(tmp.x, tmp.y, 0x6543);
-		result.y = __byte_perm(tmp.y, tmp.x, 0x6543);
-	}
-	else if (offset < 32) {
-		asm("shf.r.wrap.b32 %0, %1, %2, %3;" : "=r"(result.x) : "r"(tmp.x), "r"(tmp.y), "r"(offset));
-		asm("shf.r.wrap.b32 %0, %1, %2, %3;" : "=r"(result.y) : "r"(tmp.y), "r"(tmp.x), "r"(offset));
-	}
-	else {
-		asm("shf.r.wrap.b32 %0, %1, %2, %3;" : "=r"(result.x) : "r"(tmp.y), "r"(tmp.x), "r"(offset));
-		asm("shf.r.wrap.b32 %0, %1, %2, %3;" : "=r"(result.y) : "r"(tmp.x), "r"(tmp.y), "r"(offset));
-	}
-	return devectorize(result);
-*/
+#if NVIDIA_GPU == 1
+static inline uint64_t ROTR64X(const uint64_t x2, const int y) {
+ return rotate(x2, (ulong)(64 - y));
 }
+#else 
+static inline uint64_t ROTR64X(const uint64_t x2, const int y) {
+	uint2 x = as_uint2(x2);
+	if (y < 32) return(as_ulong(amd_bitalign(x.s10, x, y)));
+	else return(as_ulong(amd_bitalign(x, x.s10, (y - 32))));
+}
+#endif
+
 
 static inline uint2 ROR2(uint2 v, unsigned a) {
 	uint2 result;
@@ -187,20 +179,6 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 {
 		return ROTR64X(u^v, 32);
 }
-
-/*
-#define GS(a,b,c,d,e,f) \
-{ \
-v[a] +=   v[b] + m[e]; \
-v[d] = eorswap32(v[d] , v[a]); \
-v[c] += v[d]; \
-v[b] = ROR2(v[b] ^ v[c], 24); \
-v[a] += v[b] + m[f]; \
-v[d] = ROR16(v[d] ^ v[a]); \
-v[c] += v[d]; \
-v[b] = ROR2(v[b] ^ v[c], 63); \
-}
-*/
 
 
 #define GS(a,b,c,d,e,f) \
@@ -621,8 +599,7 @@ __attribute__((reqd_work_group_size(TPB_MTP, 1, 1)))
 __kernel void mtp_yloop(__global unsigned int* pData, __global const uint4  * __restrict__ DBlock, __global const uint4  * __restrict__ DBlock2,
 __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint pTarget)
 {
-//if (get_global_id(0)==0)
-//		printf("entering mtp_yloop\n");
+
 	uint32_t NonceNumber = 1;  // old
 	uint32_t ThreadNumber = 1;
 	uint32_t event_thread = get_global_id(0) - get_global_offset(0); //thread / ThreadNumber;
@@ -630,7 +607,7 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 	uint32_t NonceIterator = get_global_id(0);
 	int lane = get_local_id(0) % DIV;
 	int warp = get_local_id(0) / DIV;;//warp_id();
-//	__local  ulong2 far[TPB_MTP/ DIV][256 * (LEN + SHR_OFF)];
+ 
 		ulong2 FarReg[8]; 
 	 uint32_t farIndex;
 	const uint32_t half_memcost = 2 * 1024 * 1024;
@@ -686,7 +663,7 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 
 			}
 			farIndex = YLocal.s0 & 0x3FFFFF;
-			barrier(CLK_LOCAL_MEM_FENCE);
+	
 
 			ulong8 DataChunk[2];
 			uint32_t len = 0;
@@ -719,11 +696,11 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 						__global ulong2 *farP = (farIndex<half_memcost)?  (__global ulong2*)&GBlock[farIndex * 64 + 0 + 8 * i + 0]
 																				 : (__global ulong2*)&GBlock2[(farIndex - half_memcost) * 64 + 0 + 8 * i + 0];
 
-					//	far[warp][t + (LEN + SHR_OFF) * (lane)] = (last) ? (ulong2)(0, 0) : farP[t];
+					
 						FarReg[t] = (last) ? (ulong2)(0, 0) : farP[t];
 					}
 
-					barrier(CLK_LOCAL_MEM_FENCE);
+				
 				}
 
 				#pragma unroll
@@ -731,7 +708,7 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 					ulong2 *D = (ulong2*)DataChunk;
 					D[t + 2] = (FARLOAD(t));
 				}
-				barrier(CLK_LOCAL_MEM_FENCE);
+			
 				((uint16*)DataChunk)[0].lo = YLocal;
 
 				//	uint16 DataTmp2;
