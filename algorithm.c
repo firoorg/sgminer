@@ -1246,6 +1246,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 			else 
 					buffer->StartNonce = 0;
 			
+			
 ////////////////////////////////////////////////
 		if (buffer->prev_job_id!=NULL) {
 
@@ -1423,24 +1424,17 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		if (status != CL_SUCCESS) {
 			applog(LOG_ERR, "Error %d while creating mtp_fc kernel", status);
 		}
-
-//		printf("Step 1 : Compute F(I) and store its T blocks X[1], X[2], ..., X[T] in the memory \n");
 		size_t mtp_tree_size = 2 * 1048576 * 4 * sizeof(uint64_t);
 		clEnqueueReadBuffer(clState->commandQueue, buffer->tree, CL_TRUE, 0, mtp_tree_size, mtp->dx, 0, NULL, NULL);
-//		printf("Step 2 : Compute the root Φ of the Merkle hash tree \n");
+
 		mtp->ordered_tree = new MerkleTree(mtp->dx, true);
 
-//		JobId[thr_id] = work->data[17];
-//		XtraNonce2[thr_id] = ((uint64_t*)work->xnonce2)[0];
 		blk->work->prev_job_id = blk->work->job_id;
 		pool->swork.prev_job_id = pool->swork.job_id;
 		buffer->prev_job_id = pool->swork.job_id;
 		MerkleTree::Buffer root = mtp->ordered_tree->getRoot();
 		std::copy(root.begin(), root.end(), mtp->TheMerkleRoot);
 
-//		mtp_setBlockTarget(thr_id, endiandata, ptarget, &TheMerkleRoot[thr_id]);
-//		printf("merkleroot %08x %08x %08x %08x \n", ((uint32_t*)mtp->TheMerkleRoot)[0], ((uint32_t*)mtp->TheMerkleRoot)[1], ((uint32_t*)mtp->TheMerkleRoot)[2], ((uint32_t*)mtp->TheMerkleRoot)[3]);
-//		clFinish(clState->commandQueue);
 		root.resize(0);
 	}
 
@@ -1463,7 +1457,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 	uint32_t rawint = 2 << (blk->work->thr->cgpu->intensity - 1);
 	kernel = &clState->mtp_yloop;
 	size_t Global2 = rawint ; //1048576; //65536;
-	size_t Local2 = 256;
+	size_t Local2 = 64;
 	size_t buffersize = 1024;
 	num = 0;
 	CL_SET_ARG(clState->CLbuffer0);
@@ -1479,7 +1473,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		applog(LOG_ERR, "Error %d with kernel mtp_yloop.", status);
 	}
 	
-	status = clEnqueueReadBuffer(clState->commandQueue, clState->outputBuffer, CL_FALSE, 0, buffersize, Solution, 0, NULL, NULL);
+	status = clEnqueueReadBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0, buffersize, Solution, 0, NULL, NULL);
 	buffer->StartNonce += rawint;
 	if (Solution[0xff]) {
 		uint256 TheUint256Target[1];
@@ -1503,9 +1497,12 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		blk->work->mtpPOW.TheNonce = Solution[0];
 		((uint32_t*)blk->work->data)[19] = Solution[0];
 //			printf("*************************************************************************************Found a solution\n");
-		} else 
-			printf("*************************************************************************************Not a solution\n");
-
+		} 
+else {
+			Solution[0xff]=0;
+		status = clEnqueueWriteBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0, buffersize, Solution, 0, NULL, NULL);
+		printf("*************************************************************************************Not a solution\n");
+}
 	}
 //printf("after mtp_yloop\n");
 //	if (status != CL_SUCCESS)

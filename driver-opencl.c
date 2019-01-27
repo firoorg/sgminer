@@ -1346,7 +1346,7 @@ applog(LOG_DEBUG, "****************coming to opencl_thread_init ****************
     applog(LOG_ERR, "Failed to calloc in opencl_thread_init");
     return false;
   }
-if (clState!=NULL)
+
   status |= clEnqueueWriteBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0,
     BUFFERSIZE, blank_res, 0, NULL, NULL);
   if (unlikely(status != CL_SUCCESS)) {
