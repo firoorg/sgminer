@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments> --kernel mtp_vega  -o stratum+tcp://zcoin.mintpond.com:3000  -u  aDn7MMYjVQqenT11VFDYHfFdwXmSTRUTak.worker -p 0,strict,verbose,sd=700 --intensity 22  --device 0,1</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments> --kernel mtp  -o stratum+tcp://zcoin.mintpond.com:3000  -u  aDn7MMYjVQqenT11VFDYHfFdwXmSTRUTak.worker -p 0,strict,verbose,d=700 --intensity 18  --device 0,1 </LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>.\output\x64\Release</LocalDebuggerWorkingDirectory>
     <LocalDebuggerCommand>C:\Users\djm34\Documents\GitHub\sgminer\winbuild\output\x64\Release\sgminer.exe</LocalDebuggerCommand>

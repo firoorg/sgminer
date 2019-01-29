@@ -1460,7 +1460,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 	size_t Global2 = rawint ; //1048576; //65536;
 	size_t Local2 = 64;
 	size_t buffersize = 1024;
-	num = 0;
+	num = 0; 
 	CL_SET_ARG(clState->CLbuffer0);
 	CL_SET_ARG(buffer->hblock);
 	CL_SET_ARG(buffer->hblock2);

@@ -136,6 +136,7 @@ bool stratum_send_bos(struct pool *pool, char *s, ssize_t len);
 bool sock_full(struct pool *pool);
 char *recv_line(struct pool *pool);
 char *recv_line_bos(struct pool *pool);
+json_t *recv_line_bos2(struct pool *pool);
 bool parse_method(struct pool *pool, char *s);
 bool parse_method_bos(struct pool *pool, json_t *val);
 bool parse_notify_cn(struct pool *pool, json_t *val);

@@ -8,7 +8,7 @@ setx GPU_MAX_SINGLE_ALLOC_PERCENT 100
 
 del *.bin
 
-sgminer.exe --kernel mtp_vega  -o stratum+tcp://zcoin.mintpond.com:3000  -u  aDn7MMYjVQqenT11VFDYHfFdwXmSTRUTak.worker -p 0,strict,verbose,d=700  --intensity 18 --text-only --more-notices --verbose --debug --protocol-dump --device 1
+sgminer.exe --kernel mtp_vega   -o stratum+tcp://zcoin.mintpond.com:3000  -u  aDn7MMYjVQqenT11VFDYHfFdwXmSTRUTak.worker -p 0,strict,verbose,d=700  --intensity 18 --text-only --more-notices --verbose --debug --protocol-dump --device 0
 
 rem sgminer.exe --kernel mtp_vega  -o stratum+tcp://zcoin.mintpond.com:3000  -u  aDn7MMYjVQqenT11VFDYHfFdwXmSTRUTak.worker -p 0,strict,verbose,sd=700 --intensity 20  --device 0,1
 

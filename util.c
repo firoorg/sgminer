@@ -1742,15 +1742,15 @@ char *recv_line_bos(struct pool *pool)
 
 	len = pool->sockbuf_bossize;
 
-		json_error_t *boserror = (json_error_t *)malloc(sizeof(json_error_t));
+		json_error_t boserror;
 		if (bos_sizeof(pool->sockbuf) < pool->sockbuf_bossize) {
 			//				MyObject2 = bos_deserialize(s + bos_sizeof(s), boserror);
-			MyObject2 = bos_deserialize(pool->sockbuf, boserror);
+			MyObject2 = bos_deserialize(pool->sockbuf, &boserror);
 		}
 		else if (bos_sizeof(pool->sockbuf) > pool->sockbuf_bossize)
 			printf("missing something in message \n");
 		else
-			MyObject2 = bos_deserialize(pool->sockbuf, boserror);
+			MyObject2 = bos_deserialize(pool->sockbuf, &boserror);
 			MyObject = recode_message(MyObject2);
 
 	if (bos_sizeof(pool->sockbuf)<pool->sockbuf_bossize) {
@@ -1775,6 +1775,105 @@ out:
 	if (opt_protocol)
 		applog(LOG_DEBUG, "RECVD: %s", json_dumps(MyObject, 0));
 	return json_dumps(MyObject, 0);
+}
+
+
+json_t *recv_line_bos2(struct pool *pool)
+{
+
+	char *tok, *sret = NULL;
+	ssize_t len, buflen;
+	int waited = 0;
+	json_t *MyObject2 = json_object();
+	json_t *MyObject = json_object();
+	uint32_t bossize = 0;
+
+	bool istarget = false;
+	if (!strstr(pool->sockbuf, "\n")) {
+		struct timeval rstart, now;
+
+		cgtime(&rstart);
+
+		if (pool->sockbuf_bossize == 0)
+			if (!socket_full(pool, DEFAULT_SOCKWAIT)) {
+				applog(LOG_DEBUG, "Timed out waiting for data on socket_full");
+				goto out;
+			}
+
+		do {
+			char s[RBUFSIZE];
+			size_t slen;
+			ssize_t n;
+
+			memset(s, 0, RBUFSIZE);
+			n = recv(pool->sock, s, RECVSIZE, 0);
+
+			if (!n) {
+
+				applog(LOG_DEBUG, "Socket closed waiting in recv_line");
+				//	suspend_stratum(pool);
+				break;
+			}
+			cgtime(&now);
+			waited = tdiff(&now, &rstart);
+			if (n < 0) {
+
+				if (pool->sockbuf_bossize != 0)
+					break;
+				else if (!sock_blocks() || !socket_full(pool, 5 - waited)) {
+
+					applog(LOG_DEBUG, "Failed to recv sock in recv_line");
+					suspend_stratum(pool);
+					break;
+				}
+
+			}
+			else {
+
+				recalloc_sock_bos(pool, n);
+				memcpy(pool->sockbuf + pool->sockbuf_bossize, s, n);
+				pool->sockbuf_bossize += n;
+			}
+
+		} while (waited < DEFAULT_SOCKWAIT && !strstr(pool->sockbuf, "\n"));
+	}
+
+
+	len = pool->sockbuf_bossize;
+
+	json_error_t boserror;
+	if (bos_sizeof(pool->sockbuf) < pool->sockbuf_bossize) {
+		//				MyObject2 = bos_deserialize(s + bos_sizeof(s), boserror);
+		MyObject2 = bos_deserialize(pool->sockbuf, &boserror);
+	}
+	else if (bos_sizeof(pool->sockbuf) > pool->sockbuf_bossize)
+		printf("missing something in message \n");
+	else
+		MyObject2 = bos_deserialize(pool->sockbuf, &boserror);
+	MyObject = recode_message(MyObject2);
+
+	if (bos_sizeof(pool->sockbuf)<pool->sockbuf_bossize) {
+		uint32_t totsize = pool->sockbuf_bossize;
+		uint32_t remsize = pool->sockbuf_bossize - bos_sizeof(pool->sockbuf);
+		uint32_t currsize = bos_sizeof(pool->sockbuf);
+		memmove(pool->sockbuf, pool->sockbuf + currsize, remsize);
+		pool->sockbuf_bossize = remsize;
+	}
+	else {
+		pool->sockbuf[0] = '\0';
+		pool->sockbuf_bossize = 0;
+	}
+
+
+	pool->sgminer_pool_stats.times_received++;
+	pool->sgminer_pool_stats.bytes_received += len;
+	pool->sgminer_pool_stats.net_bytes_received += len;
+out:
+	//	if (!sret)
+	//		clear_sock(pool);
+	if (opt_protocol)
+		applog(LOG_DEBUG, "RECVD: %s", json_dumps(MyObject, 0));
+	return MyObject;
 }
 
 
@@ -2730,8 +2829,8 @@ bool parse_method(struct pool *pool, char *s)
   if (!s) {
     return ret;
   }
-
-  if (!(val = JSON_LOADS(s, &err))) {
+			val = JSON_LOADS(s, &err);
+  if (val==NULL) {
     applog(LOG_INFO, "JSON decode failed(%d): %s", err.line, err.text);
     return ret;
   }
@@ -2846,7 +2945,7 @@ bool parse_method_bos(struct pool *pool, json_t *val)
 		return ret;
 	}
 */
-	if (!val) {
+	if (val==NULL) {
 		applog(LOG_INFO, "JSON decode failed(%d)");
 		return ret;
 	}
@@ -2929,7 +3028,7 @@ bool parse_method_bos(struct pool *pool, json_t *val)
 	}
 
 done:
-	json_decref(val);
+
 	return ret;
 }
 
@@ -3105,7 +3204,8 @@ bool auth_stratum_bos(struct pool *pool)
 {
 
 	json_t *val = NULL, *res_val, *err_val, *res_id, *res_job;
-	char s[RBUFSIZE], *sret = NULL;
+	char s[RBUFSIZE];
+
 	json_error_t err;
 	bool ret = false;
 
@@ -3117,8 +3217,8 @@ bool auth_stratum_bos(struct pool *pool)
 	json_array_append(json_arr, json_string(pool->rpc_user));
 	json_array_append(json_arr, json_string(pool->rpc_pass));
 
-	json_error_t *boserror = (json_error_t *)malloc(sizeof(json_error_t));
-	bos_t *serialized = bos_serialize(MyObject, boserror);
+	json_error_t boserror;
+	bos_t *serialized = bos_serialize(MyObject, &boserror);
 	
 	if (!stratum_send_bos(pool, (char*)serialized->data, serialized->size))
 									return ret;
@@ -3126,21 +3226,21 @@ bool auth_stratum_bos(struct pool *pool)
 
 	/* Parse all data in the queue and anything left should be auth */
 	while (42) {
-		sret = recv_line_bos(pool);
+		val = recv_line_bos2(pool);
 
-		if (!sret) {
+		if (val==NULL) {
 			return ret;
 		}
-		else if (parse_method(pool, sret)) {
-			free(sret);
+		else if (parse_method_bos(pool, val)) {
+			json_decref(val);
 		}
 		else {
 			break;
 		}
 	}
 
-	val = JSON_LOADS(sret, &err);
-	free(sret);
+//	val = JSON_LOADS(sret, &err);
+//	free(sret);
 	res_val = json_object_get(val, "result");
 	err_val = json_object_get(val, "error");
 
@@ -3812,7 +3912,7 @@ bool initiate_stratum_bos(struct pool *pool)
 #define USER_AGENT PACKAGE_NAME "/" PACKAGE_VERSION
 
 	bool ret = false, recvd = false, noresume = false, sockd = false;
-	char s[RBUFSIZE], *sret = NULL, *nonce1, *sessionid;
+	char s[RBUFSIZE],  *nonce1, *sessionid;
 	json_t *val = NULL, *res_val, *err_val;
 	json_error_t err;
 	int n2size;
@@ -3838,8 +3938,8 @@ resend:
 	} else 
 		clear_sock(pool);
 
-	json_error_t *boserror = (json_error_t *)malloc(sizeof(json_error_t));
-	bos_t *serialized = bos_serialize(MyObject, boserror);
+	json_error_t boserror;
+	bos_t *serialized = bos_serialize(MyObject, &boserror);
 
 	if (__stratum_send_bos(pool, (char*)serialized->data, serialized->size) != SEND_OK) {
 	
@@ -3852,18 +3952,18 @@ resend:
 		goto out;
 	}
 
-	sret = recv_line_bos(pool);
-	if (!sret)
+	val = recv_line_bos2(pool);
+	if (val == NULL)
 		goto out;
 
 	recvd = true;
 
-	val = JSON_LOADS(sret, &err);
-	free(sret);
-	if (!val) {
-		applog(LOG_INFO, "JSON decode failed(%d): %s", err.line, err.text);
-		goto out;
-	}
+//	val = JSON_LOADS(sret, &err);
+//	free(sret);
+//	if (!val) {
+//		applog(LOG_INFO, "JSON decode failed(%d): %s", err.line, err.text);
+//		goto out;
+//	}
 
 	res_val = json_object_get(val, "result");
 	err_val = json_object_get(val, "error");

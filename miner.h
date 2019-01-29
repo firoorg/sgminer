@@ -1515,6 +1515,7 @@ struct pool {
   pthread_t stratum_sthread;
   pthread_t stratum_sthread_bos;
   pthread_t stratum_rthread;
+  pthread_t stratum_rthread_bos;
  
   pthread_mutex_t stratum_lock;
   struct thread_q *stratum_q;

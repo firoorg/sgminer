@@ -5679,7 +5679,7 @@ static bool parse_stratum_response_bos(struct pool *pool, json_t *val)
 	int id;
 
 
-	if (!val) {
+	if (val==NULL) {
 		applog(LOG_INFO, "JSON decode failed: ");
 		goto out;
 	}
@@ -6060,6 +6060,137 @@ out:
   return NULL;
 }
 
+static void *stratum_rthread_bos(void *userdata)
+{
+
+
+
+	struct pool *pool = (struct pool *)userdata;
+	char threadname[16];
+
+	pthread_detach(pthread_self());
+
+	snprintf(threadname, sizeof(threadname), "%d/RStratum", pool->pool_no);
+	RenameThread(threadname);
+
+	while (42) {
+		struct timeval timeout;
+		int sel_ret;
+		fd_set rd;
+		json_t *s = json_object();
+
+		if (unlikely(pool->removed))
+			break;
+
+		/* Check to see whether we need to maintain this connection
+		* indefinitely or just bring it up when we switch to this
+		* pool */
+		if (!sock_full(pool) && !cnx_needed(pool)) {
+			applog(LOG_INFO, "Suspending stratum on %s",
+				get_pool_name(pool));
+			suspend_stratum(pool);
+			clear_stratum_shares(pool);
+			clear_pool_work(pool);
+
+			wait_lpcurrent(pool);
+			if (!restart_stratum(pool)) {
+				pool_died(pool);
+				while (!restart_stratum(pool)) {
+					pool_failed(pool);
+					if (pool->removed)
+						goto out;
+					cgsleep_ms(30000);
+				}
+			}
+		}
+
+		FD_ZERO(&rd);
+		FD_SET(pool->sock, &rd);
+		timeout.tv_sec = 90;
+		timeout.tv_usec = 0;
+
+		/* The protocol specifies that notify messages should be sent
+		* every minute so if we fail to receive any for 90 seconds we
+		* assume the connection has been dropped and treat this pool
+		* as dead */
+		if (!sock_full(pool) && (sel_ret = select(pool->sock + 1, &rd, NULL, NULL, &timeout)) < 1) {
+			applog(LOG_DEBUG, "Stratum select failed on %s with value %d", get_pool_name(pool), sel_ret);
+			s = NULL;
+		}
+		else
+			s =  recv_line_bos2(pool);
+		if (s==NULL) {
+			applog(LOG_NOTICE, "Stratum connection to %s interrupted", get_pool_name(pool));
+			pool->getfail_occasions++;
+			total_go++;
+
+			/* If the socket to our stratum pool disconnects, all
+			* tracked submitted shares are lost and we will leak
+			* the memory if we don't discard their records. */
+			if (!supports_resume(pool) || opt_lowmem)
+				clear_stratum_shares(pool);
+			clear_pool_work(pool);
+			if (pool == current_pool())
+				restart_threads();
+
+			if (restart_stratum(pool))
+				continue;
+
+			pool_died(pool);
+			while (!restart_stratum(pool)) {
+				pool_failed(pool);
+				if (pool->removed)
+					goto out;
+				cgsleep_ms(30000);
+			}
+			stratum_resumed(pool);
+			continue;
+		}
+
+		/* Check this pool hasn't died while being a backup pool and
+		* has not had its idle flag cleared */
+		stratum_resumed(pool);
+
+		applog(LOG_DEBUG, "%s: parsing the object...");
+
+		if (!parse_method_bos(pool, s) && !parse_stratum_response_bos(pool, s))
+			applog(LOG_INFO, "Unknown stratum msg ");
+		else if (pool->swork.clean) {
+			struct work *work = make_work();
+
+			/* Generate a single work item to update the current
+			* block database */
+			pool->swork.clean = false;
+
+			switch (pool->algorithm.type) {
+			case ALGO_LBRY:
+				gen_stratum_work(pool, work);
+				break;
+			case ALGO_ETHASH:
+				gen_stratum_work_eth(pool, work);
+				break;
+			case ALGO_CRYPTONIGHT:
+				gen_stratum_work_cn(pool, work);
+				break;
+			default:
+				gen_stratum_work(pool, work);
+				break;
+			}
+
+			work->longpoll = true;
+			/* Return value doesn't matter. We're just informing
+			* that we may need to restart. */
+			test_work_current(work);
+			free_work(work);
+		}
+	//	json_decref(s);
+	}
+
+out:
+	return NULL;
+}
+
+
 
 /* Each pool has one stratum send thread for sending shares to avoid many
  * threads being created for submission since all sends need to be serialised
@@ -6369,11 +6500,13 @@ static void *stratum_sthread_bos(void *userdata)
 			hex2bin(hexjob_id, work->job_id, 8);
 
 			json_t *json_arr = json_array();
+
+
 			json_object_set_new(MyObject, "id", json_integer(4));
 			json_object_set_new(MyObject, "method", json_string("mining.submit"));
+			json_object_set_new(MyObject, "params", json_arr);
 
 			json_array_append(json_arr, json_string(pool->rpc_user));
-
 			json_array_append(json_arr, json_bytes((unsigned char*)hexjob_id, 4));
 			json_array_append(json_arr, json_bytes((unsigned char*)&work->nonce2, sizeof(uint64_t*)));
 			json_array_append(json_arr, json_bytes((unsigned char*)&ntime, sizeof(uint32_t)));
@@ -6382,16 +6515,14 @@ static void *stratum_sthread_bos(void *userdata)
 			json_array_append(json_arr, json_bytes((unsigned char*)work->mtpPOW.nBlockMTP, SizeBlockMTP));
 			json_array_append(json_arr, json_bytes(work->mtpPOW.nProofMTP, SizeProofMTP));
 
-			json_object_set_new(MyObject, "params", json_arr);
+			json_error_t boserror;
+			bos_t *serialized = bos_serialize(MyObject, &boserror);
 
-			json_error_t *boserror = (json_error_t *)malloc(sizeof(json_error_t));
-			bos_t *serialized = bos_serialize(MyObject, boserror);
-
-			free(boserror);
-
+			json_decref(json_arr);
+//			json_arr = NULL;
 
 
-			applog(LOG_INFO, "Serialized size %d\n",serialized->size);
+//			applog(LOG_INFO, "Serialized size %d\n",serialized->size);
 //			stratum.sharediff = work->sharediff[0];
 
 		applog(LOG_INFO, "Submitting share %08lx to %s", (long unsigned int)htole32(hash32[6]), get_pool_name(pool));
@@ -6465,7 +6596,7 @@ static void *stratum_sthread_bos(void *userdata)
 	
 	if(MyObject!=NULL)
 		json_decref(MyObject);
-	if (free!=NULL)
+	if (serialized !=NULL)
 		free(serialized);
 
 	return NULL;
@@ -6479,12 +6610,18 @@ static void init_stratum_threads(struct pool *pool)
 if (pool->algorithm.type == ALGO_MTP) {
 	if (unlikely(pthread_create(&pool->stratum_sthread_bos, NULL, stratum_sthread_bos, (void *)pool)))
 			quit(1, "Failed to create stratum sthread");
+
+	if (unlikely(pthread_create(&pool->stratum_rthread_bos, NULL, stratum_rthread_bos, (void *)pool)))
+			quit(1, "Failed to create stratum rthread");
 } else {
 	if (unlikely(pthread_create(&pool->stratum_sthread, NULL, stratum_sthread, (void *)pool)))
 			quit(1, "Failed to create stratum sthread");
-}
+
 	if (unlikely(pthread_create(&pool->stratum_rthread, NULL, stratum_rthread, (void *)pool)))
-			quit(1, "Failed to create stratum rthread");
+		quit(1, "Failed to create stratum rthread");
+
+}
+
 
 }
 

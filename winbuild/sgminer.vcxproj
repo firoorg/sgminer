@@ -239,6 +239,7 @@
       <CompileAsManaged>false</CompileAsManaged>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>true</MinimalRebuild>
+      <CreateHotpatchableImage>true</CreateHotpatchableImage>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -257,6 +258,7 @@
       <StackReserveSize>100000000</StackReserveSize>
       <FullProgramDatabaseFile>true</FullProgramDatabaseFile>
       <AssemblyDebug>true</AssemblyDebug>
+      <CreateHotPatchableImage>X64Image</CreateHotPatchableImage>
     </Link>
     <PostBuildEvent>
       <Command>
