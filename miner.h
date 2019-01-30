@@ -16,9 +16,9 @@
 
 #include "algorithm.h"
 
-#ifdef __cplusplus
+
 #include "merkletree/mtp.h"
-#endif
+
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -558,14 +558,10 @@ struct _mtp_gpu_t;
 typedef struct _mtp_cache_t {
 	uint32_t JobId;
 	uint64_t XtraNonce2;
-#ifdef __cplusplus
 	MerkleTree *ordered_tree;
-#endif
 	unsigned char TheMerkleRoot[16];
-#ifdef __cplusplus
 	argon2_context context;
 	argon2_instance_t instance;
-#endif
 	uint8_t *dx;
 	struct mtp mtpPOW;
 	bool disabled;

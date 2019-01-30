@@ -1189,12 +1189,12 @@ else
 }
 */
 
-#ifdef __cplusplus
+
 static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unused cl_uint threads)
 {
 	struct pool *pool = blk->work->pool;
-	mtp_cache_t *mtp = &blk->work->thr->cgpu->mtp_buffer.mtp_cache; //&blk->work->pool->mtp_cache;
-	
+	mtp_cache_t *mtp = &blk->work->thr->cgpu->mtp_buffer.mtp_cache; 
+
 	cl_kernel *kernel;
 	unsigned int num = 0;
 	cl_int status = 0;
@@ -1241,6 +1241,8 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 			for (int i = 0; i< total_devices;i++)
 					if (devices_enabled[i]) TED++;
 			
+			if (TED == 0) TED++;
+
 			buffer->nDevs = TED;
 			buffer->MaxNonce = 0xFFFFFFFF/TED;
 			if (buffer->MaxNonce != 0xFFFFFFFF)
@@ -1254,7 +1256,8 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 
 	//		free_memory(&mtp->context, (unsigned char *)mtp->instance.memory, mtp->instance.memory_argon_blocks, sizeof(argon_block));
 
-			mtp->ordered_tree->Destructor();
+//			mtp->ordered_tree->Destructor();
+			call_MerkleTree_Destructor(mtp->ordered_tree);
 			free(mtp->dx);
 	//		delete  mtp->ordered_tree;
 			clReleaseMemObject(buffer->hblock);
@@ -1429,15 +1432,20 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		size_t mtp_tree_size = 2 * 1048576 * 4 * sizeof(uint64_t);
 		clEnqueueReadBuffer(clState->commandQueue, buffer->tree, CL_TRUE, 0, mtp_tree_size, mtp->dx, 0, NULL, NULL);
 
-		mtp->ordered_tree = new MerkleTree(mtp->dx, true);
+	//	mtp->ordered_tree = new MerkleTree(mtp->dx, true);
+		mtp->ordered_tree = call_new_MerkleTree(mtp->dx, true);
 
 		blk->work->prev_job_id = blk->work->job_id;
 		pool->swork.prev_job_id = pool->swork.job_id;
 		buffer->prev_job_id = pool->swork.job_id;
+
+		call_MerkleTree_getRoot(mtp->ordered_tree, mtp->TheMerkleRoot);
+/*
 		MerkleTree::Buffer root = mtp->ordered_tree->getRoot();
 		std::copy(root.begin(), root.end(), mtp->TheMerkleRoot);
-
 		root.resize(0);
+*/
+		
 	}
 
 
@@ -1511,7 +1519,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 //		cg_runlock(&dag->lock);
 	return status;
 }
-#endif
+
 
 
 static void append_equihash_compiler_options(struct _build_kernel_data *data, struct cgpu_info *cgpu, struct _algorithm_t *algorithm)

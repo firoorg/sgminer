@@ -12,7 +12,6 @@
 #include <CL/cl.h> 
 #endif
 
-
 #include "merkle-tree.hpp"
 
 
@@ -30,11 +29,19 @@
 #include "uint256.h"
 //#include "serialize.h"
 
+#ifdef __cplusplus
 
-void copy_argon_blockS(argon_blockS *dst, const argon_block *src);
+void scopy_argon_blockS(argon_blockS *dst, const argon_block *src);
 
 void mtp_hash(char* output, const char* input, unsigned int d, uint32_t TheNonce);
+
+extern "C"
+#endif
 argon2_context init_argon2d_param(const char* input);
+
+
+
+#ifdef __cplusplus
 void getargon_blockindex_orig(uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_argon_block);
 
 void getargon_blockindex(int thr_id, cl_command_queue Queue, cl_mem block, cl_mem block2, uint32_t ij, argon2_instance_t *instance, uint32_t *out_ij_prev, uint32_t *out_computed_ref_argon_block);
@@ -47,17 +54,19 @@ int mtp_solver_orig(uint32_t TheNonce, argon2_instance_t *instance,
 	argon_blockS *nargon_blockMTP /*[72 * 2][128]*/, unsigned char *nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
 
+
+extern "C"
+#endif
 int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, cl_mem clblock2, uint32_t TheNonce, argon2_instance_t *instance,
 	argon_blockS *nargon_blockMTP /*[72 * 2][128]*/, unsigned char *nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
 	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
 
 
-
+#ifdef __cplusplus
 
 MerkleTree::Elements mtp_init(argon2_instance_t *instance);
 MerkleTree::Elements mtp_init2(argon2_instance_t *instance);
-//uint8_t *mtp_init3(argon2_instance_t *instance, int thr_id);
-//void  mtp_init3(argon2_instance_t *instance, int thr_id, MerkleTree *TheTree);
-//MerkleTree  mtp_init3(argon2_instance_t *instance, int thr_id);
+
 void  mtp_init3(argon2_instance_t *instance, int thr_id, MerkleTree &ThatTree);
 
+#endif
