@@ -69,6 +69,7 @@ static int ensure_buffer_size(buffer_t *buffer, size_t amount, json_error_t *err
 		return TRUE;
 
 	buffer->data = jsonp_malloc(new_size * sizeof(uint8_t));
+	//buffer->data = realloc(buffer->data, new_size * sizeof(uint8_t));
 	if (!buffer->data) {
 		error_set(error, json_error_out_of_memory, "failed to allocate additional buffer memory");
 		return FALSE;

@@ -12,7 +12,7 @@ SUBDIRS		= lib submodules ccan sph
 
 bin_PROGRAMS     = sgminer
 
-sgminer_CPPFLAGS = $(PTHREAD_FLAGS) -std=gnu99 $(JANSSON_CPPFLAGS)
+sgminer_CPPFLAGS = $(PTHREAD_FLAGS) -std=c++11 $(JANSSON_CPPFLAGS)
 sgminer_LDFLAGS  = $(PTHREAD_FLAGS)
 sgminer_LDADD    = $(DLOPEN_FLAGS) @LIBCURL_LIBS@ @JANSSON_LIBS@ @PTHREAD_LIBS@ \
 		  @OPENCL_LIBS@ @NCURSES_LIBS@ @PDCURSES_LIBS@ @WS2_LIBS@ \
@@ -36,7 +36,7 @@ sgminer_CPPFLAGS += -DBUILD_NUMBER=\"$(BUILD_NUMBER)\"
 endif
 
 sgminer_SOURCES := sgminer.c
-sgminer_SOURCES	+= api.c api.h
+sgminer_SOURCES	+= api.c api.h uint256.h
 sgminer_SOURCES	+= elist.h miner.h compat.h bench_block.h
 sgminer_SOURCES	+= util.c util.h uthash.h
 sgminer_SOURCES	+= logging.c logging.h
@@ -46,7 +46,7 @@ sgminer_SOURCES += findnonce.c findnonce.h
 sgminer_SOURCES += adl.c adl.h adl_functions.h
 sgminer_SOURCES += sysfs-gpu-controls.c sysfs-gpu-controls.h
 sgminer_SOURCES += pool.c pool.h
-sgminer_SOURCES += algorithm.c algorithm.h
+sgminer_SOURCES += algorithm.h algorithm.c
 sgminer_SOURCES += config_parser.c config_parser.h
 sgminer_SOURCES += events.c events.h
 sgminer_SOURCES += ocl/build_kernel.c ocl/build_kernel.h
@@ -65,7 +65,7 @@ sgminer_SOURCES += algorithm/groestlcoin.c algorithm/groestlcoin.h
 sgminer_SOURCES += algorithm/sifcoin.c algorithm/sifcoin.h
 sgminer_SOURCES += algorithm/twecoin.c algorithm/twecoin.h
 sgminer_SOURCES += algorithm/marucoin.c algorithm/marucoin.h
-sgminer_SOURCES += algorithm/maxcoin.c algorithm/maxcoin.h
+sgminer_SOURCES += algorithm/maxcoin.c algorithm/maxcoin.h 
 sgminer_SOURCES += algorithm/talkcoin.c algorithm/talkcoin.h
 sgminer_SOURCES += algorithm/bitblock.c algorithm/bitblock.h
 sgminer_SOURCES += algorithm/x14.c algorithm/x14.h
@@ -86,12 +86,10 @@ sgminer_SOURCES += algorithm/equihash.c algorithm/equihash.h
 sgminer_SOURCES += algorithm/lyra2Z.c algorithm/lyra2Z.h
 sgminer_SOURCES += algorithm/lyra2h.c algorithm/lyra2h.h
 sgminer_SOURCES += gbt-util.c gbt-util.h
-
-sgminer_SOURCES += algorithm/argon2d/argon2ref/blake2/blake2b.c  algorithm/argon2d/argon2ref/argon2.c  algorithm/argon2d/argon2ref/core.c algorithm/argon2d/argon2ref/opt.c  algorithm/argon2d/argon2ref/thread.c algorithm/argon2d/argon2ref/encoding.c algorithm/argon2d/argon2ref/argon2.h
-sgminer_SOURCES += algorithm/argon2d/argon2d.c algorithm/argon2d/argon2d.h
-sgminer_SOURCES += mtp_argon2ref/mtp_argon2.c mtp_argon2ref/mtp_blake2ba.c mtp_argon2ref/mtp_core.c mtp_argon2ref/mtp_encoding.c mtp_argon2ref/mtp_ref.c mtp_argon2ref/mtp_thread.c mtp_argon2ref/mtp_argon2.h mtp_argon2ref/mtp_blake2-impl.h mtp_argon2ref/mtp_blake2.h mtp_argon2ref/mtp_blake2b-load-sse2.h mtp_argon2ref/mtp_blake2b-load-sse41.h mtp_argon2ref/mtp_blake2b-round.h mtp_argon2ref/mtp_blamka-round-opt.h mtp_argon2ref/mtp_blamka-round-ref.h mtp_argon2ref/mtp_core.h mtp_argon2ref/mtp_encoding.h mtp_argon2ref/mtp_thread.h
+sgminer_SOURCES += merkletree/merkle-tree.cpp 	merkletree/merkle-tree.hpp merkletree/mtp.h merkletree/mtp.cpp merkletree/serialize.h 
+sgminer_SOURCES += argon2ref/argon2.c  argon2ref/blake2ba.c  argon2ref/blake2-impl.h argon2ref/blamka-round-ref.h  argon2ref/core.h argon2ref/encoding.h  argon2ref/thread.c 
+sgminer_SOURCES += argon2ref/argon2.h  argon2ref/blake2.h  argon2ref/blamka-round-opt.h  argon2ref/core.c  argon2ref/encoding.c  argon2ref/ref.c   argon2ref/thread.h 
+sgminer_SOURCES += argon2ref/blake2b-load-sse2.h argon2ref/blake2b-load-sse41.h  argon2ref/blake2b-round.h argon2re/blake2-impl.h 
 sgminer_SOURCES += algorithm/mtp_algo.c algorithm/mtp_algo.h
-sgminer_SOURCES += merkletree/merkle-tree.cpp merkletree/mtp.cpp merkletree/merkle-tree.hpp merkletree/mtp.h
 
 bin_SCRIPTS	= $(top_srcdir)/kernel/*.cl
-

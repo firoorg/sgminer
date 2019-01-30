@@ -15,6 +15,7 @@
 
 #include "merkle-tree.hpp"
 
+
 #include <immintrin.h>
 #include "argon2ref/core.h"
 #include "argon2ref/argon2.h"
@@ -28,29 +29,7 @@
 
 #include "uint256.h"
 //#include "serialize.h"
-class Cargon_block;
 
-/* Size of MTP proof */
-const unsigned int MTP_PROOF_SIZE = 1471;// 1431;
-/* Size of MTP argon_block proof size */
-const unsigned int MTP_argon_block_PROOF_SIZE = 64;
-/* Size of MTP argon_block */
-const unsigned int MTP_argon_block_SIZE = 140;
-
-typedef struct argon_block_with_offset_ {
-	argon_block memory;
-	//	char* proof;
-	char proof[MTP_PROOF_SIZE];
-} argon_block_with_offset;
-
-typedef struct argon_block_mtpProof_ {
-	argon_block memory;
-	char proof[MTP_PROOF_SIZE];
-} argon_block_mtpProof;
-
-typedef struct mtp_Proof_ {
-	char proof[MTP_PROOF_SIZE]; 
-} mtp_Proof;
 
 void copy_argon_blockS(argon_blockS *dst, const argon_block *src);
 
@@ -81,3 +60,4 @@ MerkleTree::Elements mtp_init2(argon2_instance_t *instance);
 //void  mtp_init3(argon2_instance_t *instance, int thr_id, MerkleTree *TheTree);
 //MerkleTree  mtp_init3(argon2_instance_t *instance, int thr_id);
 void  mtp_init3(argon2_instance_t *instance, int thr_id, MerkleTree &ThatTree);
+

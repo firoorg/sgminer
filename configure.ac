@@ -44,17 +44,20 @@ AC_SUBST(VMAJ)
 AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 
+
 dnl Make sure anyone changing configure.ac/Makefile.am has a clue
 AM_MAINTAINER_MODE
 
 dnl Checks for programs
 AC_PROG_CC
+AC_PROG_CXX
 gl_EARLY
 AC_PROG_GCC_TRADITIONAL
 AM_PROG_CC_C_O
 LT_INIT([disable-shared])
 
 gl_INIT
+
 
 dnl Checks for header files.
 AC_HEADER_STDC
@@ -255,7 +258,7 @@ AM_CONDITIONAL([HAVE_WINDOWS], [test x$have_win32 = xtrue])
 AM_CONDITIONAL([HAVE_x86_64], [test x$have_x86_64 = xtrue])
 
 AC_CONFIG_SUBDIRS([submodules/jansson])
-JANSSON_LIBS="submodules/jansson/src/.libs/libbosjansson.a"
+JANSSON_LIBS="submodules/jansson/src/libbosjansson.a"
 
 PKG_PROG_PKG_CONFIG()
 
