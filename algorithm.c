@@ -1486,8 +1486,8 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 	status = clEnqueueReadBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0, buffersize, Solution, 0, NULL, NULL);
 	buffer->StartNonce += rawint;
 	if (Solution[0xff]) {
-		uint256 TheUint256Target[1];
-		TheUint256Target[0] = ((uint256*)ptarget)[0];
+//		uint256 TheUint256Target[1];
+//		TheUint256Target[0] = ((uint256*)ptarget)[0];
 		unsigned char mtpHashValue[32];
 		argon_blockS nBlockMTP[MTP_L * 2] = { 0 };
 		unsigned char nProofMTP[MTP_L * 3 * 353] = { 0 };
@@ -1496,7 +1496,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		
 
 		uint32_t is_sol = mtp_solver(0, clState->commandQueue, buffer->hblock, buffer->hblock2, Solution[0],
-		&mtp->instance, nBlockMTP, nProofMTP, mtp->TheMerkleRoot, mtpHashValue, *mtp->ordered_tree, endiandata, TheUint256Target[0]);
+		&mtp->instance, nBlockMTP, nProofMTP, mtp->TheMerkleRoot, mtpHashValue, mtp->ordered_tree, endiandata, (uint256*)ptarget);
 		if (is_sol==1) {
 		memcpy(blk->work->mtpPOW.MerkleRoot, mtp->TheMerkleRoot,16);
 		for (int j = 0; j<(MTP_L * 2); j++)
@@ -1717,10 +1717,9 @@ static algorithm_settings_t algos[] = {
   { "lyra2rev2", ALGO_LYRA2REV2, "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 6, -1, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, lyra2rev2_regenhash, precalc_hash_blake256, queue_lyra2rev2_kernel, gen_hash, append_neoscrypt_compiler_options },
   { "lyra2Z"   , ALGO_LYRA2Z   , "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, lyra2Z_regenhash   , precalc_hash_blake256, queue_lyra2z_kernel   , gen_hash, NULL },
   { "lyra2h"   , ALGO_LYRA2H   , "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, lyra2h_regenhash   , precalc_hash_blake256, queue_lyra2h_kernel   , gen_hash, NULL },
-#ifdef __cplusplus
   { "mtp"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
   { "mtp_vega"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-#endif
+
   // kernels starting from this will have difficulty calculated by using fuguecoin algorithm
 #define A_FUGUE(a, b, c) \
   { a, ALGO_FUGUE, "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 0, 0, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, b, NULL, queue_sph_kernel, c, NULL }

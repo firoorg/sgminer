@@ -31,7 +31,7 @@
 
 #ifdef __cplusplus
 
-void scopy_argon_blockS(argon_blockS *dst, const argon_block *src);
+//void scopy_argon_blockS(argon_blockS *dst, const argon_block *src);
 
 void mtp_hash(char* output, const char* input, unsigned int d, uint32_t TheNonce);
 
@@ -59,7 +59,7 @@ extern "C"
 #endif
 int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, cl_mem clblock2, uint32_t TheNonce, argon2_instance_t *instance,
 	argon_blockS *nargon_blockMTP /*[72 * 2][128]*/, unsigned char *nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
-	MerkleTree TheTree, uint32_t* input, uint256 hashTarget);
+	MerkleTree *zTheTree, uint32_t* input, uint256* zhashTarget);
 
 
 #ifdef __cplusplus

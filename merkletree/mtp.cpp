@@ -677,8 +677,11 @@ MerkleTree TheTree,uint32_t* input, uint256 hashTarget) {
 
 int mtp_solver(int thr_id, cl_command_queue Queue, cl_mem clblock, cl_mem clblock2, uint32_t TheNonce, argon2_instance_t *instance,
 	argon_blockS *nargon_blockMTP /*[72 * 2][128]*/, unsigned char* nProofMTP, unsigned char* resultMerkleRoot, unsigned char* mtpHashValue,
-	MerkleTree TheTree, uint32_t* input, uint256 hashTarget) {
+	MerkleTree* zTheTree, uint32_t* input, uint256* zhashTarget) {
 
+
+	MerkleTree TheTree = zTheTree[0];
+	uint256 hashTarget = zhashTarget[0];
 
 	if (instance != NULL) {
 		//		input[19]=0x01000000;
