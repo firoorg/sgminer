@@ -1674,6 +1674,7 @@ json_t* recode_message(json_t *MyObject2)
 			json_decref(value2);
 		}
 	}
+//	json_decref(MyObject2);
 	return MyObject;
 }
 
@@ -1784,7 +1785,7 @@ json_t *recv_line_bos2(struct pool *pool)
 	char *tok, *sret = NULL;
 	ssize_t len, buflen;
 	int waited = 0;
-	json_t *MyObject2 = json_object();
+
 	json_t *MyObject = json_object();
 	uint32_t bossize = 0;
 
@@ -1844,14 +1845,13 @@ json_t *recv_line_bos2(struct pool *pool)
 	json_error_t boserror;
 	if (bos_sizeof(pool->sockbuf) < pool->sockbuf_bossize) {
 		//				MyObject2 = bos_deserialize(s + bos_sizeof(s), boserror);
-		MyObject2 = bos_deserialize(pool->sockbuf, &boserror);
+		MyObject = recode_message(bos_deserialize(pool->sockbuf, &boserror));
 	}
 	else if (bos_sizeof(pool->sockbuf) > pool->sockbuf_bossize)
 		printf("missing something in message \n");
 	else
-		MyObject2 = bos_deserialize(pool->sockbuf, &boserror);
-	MyObject = recode_message(MyObject2);
-
+		MyObject = recode_message(bos_deserialize(pool->sockbuf, &boserror));
+	
 	if (bos_sizeof(pool->sockbuf)<pool->sockbuf_bossize) {
 		uint32_t totsize = pool->sockbuf_bossize;
 		uint32_t remsize = pool->sockbuf_bossize - bos_sizeof(pool->sockbuf);
@@ -1869,8 +1869,8 @@ json_t *recv_line_bos2(struct pool *pool)
 	pool->sgminer_pool_stats.bytes_received += len;
 	pool->sgminer_pool_stats.net_bytes_received += len;
 out:
-	//	if (!sret)
-	//		clear_sock(pool);
+	if (MyObject==NULL)
+			clear_sock(pool);
 	if (opt_protocol)
 		applog(LOG_DEBUG, "RECVD: %s", json_dumps(MyObject, 0));
 	return MyObject;

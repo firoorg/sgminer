@@ -1978,9 +1978,9 @@ static struct work *make_work(void)
  * cleaned to remove any dynamically allocated arrays within the struct */
 void clean_work(struct work *w)
 {
-if (w->job_id!=NULL)
-	w->prev_job_id = w->job_id;
-
+//if (w->job_id!=NULL)
+//	w->prev_job_id = w->job_id;
+//free(w->job_id);
   free(w->job_id);
   free(w->ntime);
   free(w->coinbase);
@@ -6115,10 +6115,12 @@ static void *stratum_rthread_bos(void *userdata)
 		* as dead */
 		if (!sock_full(pool) && (sel_ret = select(pool->sock + 1, &rd, NULL, NULL, &timeout)) < 1) {
 			applog(LOG_DEBUG, "Stratum select failed on %s with value %d", get_pool_name(pool), sel_ret);
-			s = NULL;
+			//s = NULL;
+			json_decref(s);
 		}
 		else
 			s =  recv_line_bos2(pool);
+
 		if (s==NULL) {
 			applog(LOG_NOTICE, "Stratum connection to %s interrupted", get_pool_name(pool));
 			pool->getfail_occasions++;
@@ -6481,12 +6483,12 @@ static void *stratum_sthread_bos(void *userdata)
 			applog(LOG_DEBUG, "stratum_sthread_bos() algorithm = %s", pool->algorithm.name);
 
 			unsigned char TheMerkle[16];
-			memcpy(TheMerkle, work->mtpPOW.MerkleRoot, 16);
+			memcpy(TheMerkle, pool->mtp_cache.mtpPOW.MerkleRoot, 16);
 			applog(LOG_DEBUG, "stratum_sthread_bos THE MERKLE ROOT %08x %08x %08x %08x", ((uint32_t*)TheMerkle)[0], ((uint32_t*)TheMerkle)[1]
 				, ((uint32_t*)TheMerkle)[2], ((uint32_t*)TheMerkle)[3]);
 
 				ntime = htole32(((uint32_t*)work->data)[17]);
-				nonce = htole32(work->mtpPOW.TheNonce);
+				nonce = htole32(pool->mtp_cache.mtpPOW.TheNonce);
 			//	nonce = htole32(((uint32_t*)work->data)[19]);
 			*((uint64_t *)nonce2) = htole64(work->nonce2);
 			applog(LOG_DEBUG, "stratum_sthread_bos THE NONCE %08x ", nonce);
@@ -6511,14 +6513,15 @@ static void *stratum_sthread_bos(void *userdata)
 			json_array_append(json_arr, json_bytes((unsigned char*)&work->nonce2, sizeof(uint64_t*)));
 			json_array_append(json_arr, json_bytes((unsigned char*)&ntime, sizeof(uint32_t)));
 			json_array_append(json_arr, json_bytes((unsigned char*)&nonce, sizeof(uint32_t)));
-			json_array_append(json_arr, json_bytes(work->mtpPOW.MerkleRoot, SizeMerkleRoot));
-			json_array_append(json_arr, json_bytes((unsigned char*)work->mtpPOW.nBlockMTP, SizeBlockMTP));
-			json_array_append(json_arr, json_bytes(work->mtpPOW.nProofMTP, SizeProofMTP));
+			json_array_append(json_arr, json_bytes(pool->mtp_cache.mtpPOW.MerkleRoot, SizeMerkleRoot));
+			json_array_append(json_arr, json_bytes((unsigned char*)pool->mtp_cache.mtpPOW.nBlockMTP, SizeBlockMTP));
+			json_array_append(json_arr, json_bytes(pool->mtp_cache.mtpPOW.nProofMTP, SizeProofMTP));
 
 			json_error_t boserror;
 			bos_t *serialized = bos_serialize(MyObject, &boserror);
 
 			json_decref(json_arr);
+		
 //			json_arr = NULL;
 
 
@@ -6536,7 +6539,8 @@ static void *stratum_sthread_bos(void *userdata)
 			mutex_lock(&sshare_lock);
 			if (likely(stratum_send_bos(pool, (char*)serialized->data, serialized->size))) {
 				int ssdiff;
-
+				if (serialized != NULL)
+					bos_free(serialized);
 				if (pool_tclear(pool, &pool->submit_fail))
 					applog(LOG_WARNING, "%s communication resumed, submitting work", get_pool_name(pool));
 
@@ -6596,8 +6600,7 @@ static void *stratum_sthread_bos(void *userdata)
 	
 	if(MyObject!=NULL)
 		json_decref(MyObject);
-	if (serialized !=NULL)
-		free(serialized);
+
 
 	return NULL;
 }
@@ -8277,15 +8280,12 @@ bool submit_tested_work(struct thr_info *thr, struct work *work)
 bool submit_nonce(struct thr_info *thr, struct work *work, uint32_t nonce)
 {
   //temporary
-	unsigned char TheMerkle[16];
-  	memcpy(TheMerkle,work->mtpPOW.MerkleRoot,16);
-	applog(LOG_DEBUG, "THE MERKLE ROOT %08x %08x %08x %08x", ((uint32_t*)TheMerkle)[0], ((uint32_t*)TheMerkle)[1]
-		, ((uint32_t*)TheMerkle)[2], ((uint32_t*)TheMerkle)[3]);
 
   if (work->pool->algorithm.type == ALGO_EQUIHASH || work->pool->algorithm.type == ALGO_MTP) {
-    struct work *work_out;
+    struct work *work_out = make_work();
     update_work_stats(thr, work);
-    work_out = copy_work(work);
+	_copy_work(work_out, work, 0);
+//    work_out = copy_work(work);
     submit_work_async(work_out);
     return true;
   }

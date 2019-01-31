@@ -576,7 +576,7 @@ typedef struct _mtp_gpu_t {
 	cl_mem blockheader;
 	cl_mem tree; // dx
 	cl_mem root;
-	struct pool *pool;
+//	struct pool *pool;
 	mtp_cache_t mtp_cache;
 	uint32_t nDevs;
 	uint32_t StartNonce;
@@ -1591,7 +1591,7 @@ struct work {
 
 	uint32_t XMRNonce;
 
-	mtp mtpPOW;
+//	mtp mtpPOW;
 
 
 	unsigned char equihash_data[1487];
