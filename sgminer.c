@@ -6072,12 +6072,12 @@ static void *stratum_rthread_bos(void *userdata)
 
 	snprintf(threadname, sizeof(threadname), "%d/RStratum", pool->pool_no);
 	RenameThread(threadname);
-
+		json_t *s = NULL; //json_object();
 	while (42) {
 		struct timeval timeout;
 		int sel_ret;
 		fd_set rd;
-		json_t *s = json_object();
+
 
 		if (unlikely(pool->removed))
 			break;
@@ -6116,7 +6116,7 @@ static void *stratum_rthread_bos(void *userdata)
 		if (!sock_full(pool) && (sel_ret = select(pool->sock + 1, &rd, NULL, NULL, &timeout)) < 1) {
 			applog(LOG_DEBUG, "Stratum select failed on %s with value %d", get_pool_name(pool), sel_ret);
 			//s = NULL;
-			json_decref(s);
+			s=NULL;
 		}
 		else
 			s =  recv_line_bos2(pool);
@@ -6185,7 +6185,7 @@ static void *stratum_rthread_bos(void *userdata)
 			test_work_current(work);
 			free_work(work);
 		}
-	//	json_decref(s);
+		json_decref(s);
 	}
 
 out:
@@ -6439,14 +6439,18 @@ static void *stratum_sthread_bos(void *userdata)
 
 
 	bos_t *serialized;
-	json_t *MyObject = json_object();
+//	json_t *MyObject = json_object();
 	uint32_t SizeMerkleRoot = 16;
 	uint32_t SizeReserved = 64;
 	uint32_t SizeMtpHash = 32;
 	uint32_t SizeBlockMTP = MTP_L * 2 * 128 * 8;
 	uint32_t SizeProofMTP = MTP_L * 3 * 353;
 	uint32_t ntime;
+
+
+
 	while (42) {
+		json_t *MyObject = json_object();
 		char noncehex[12], nonce2hex[20];
 		struct stratum_share *sshare;
 		uint32_t *hash32, nonce;
@@ -6500,15 +6504,15 @@ static void *stratum_sthread_bos(void *userdata)
 
 			unsigned char* hexjob_id = (unsigned char*)malloc(4);
 			hex2bin(hexjob_id, work->job_id, 8);
-
-			json_t *json_arr = json_array();
-
-
+			json_t *json_arr =json_array();
+		
 			json_object_set_new(MyObject, "id", json_integer(4));
 			json_object_set_new(MyObject, "method", json_string("mining.submit"));
-			json_object_set_new(MyObject, "params", json_arr);
 
-			json_array_append(json_arr, json_string(pool->rpc_user));
+			
+			json_t *TheString = json_stringn(pool->rpc_user, strlen(pool->rpc_user));
+
+			json_array_append(json_arr, TheString);
 			json_array_append(json_arr, json_bytes((unsigned char*)hexjob_id, 4));
 			json_array_append(json_arr, json_bytes((unsigned char*)&work->nonce2, sizeof(uint64_t*)));
 			json_array_append(json_arr, json_bytes((unsigned char*)&ntime, sizeof(uint32_t)));
@@ -6516,17 +6520,20 @@ static void *stratum_sthread_bos(void *userdata)
 			json_array_append(json_arr, json_bytes(pool->mtp_cache.mtpPOW.MerkleRoot, SizeMerkleRoot));
 			json_array_append(json_arr, json_bytes((unsigned char*)pool->mtp_cache.mtpPOW.nBlockMTP, SizeBlockMTP));
 			json_array_append(json_arr, json_bytes(pool->mtp_cache.mtpPOW.nProofMTP, SizeProofMTP));
+			json_object_set(MyObject, "params", json_arr);
 
 			json_error_t boserror;
 			bos_t *serialized = bos_serialize(MyObject, &boserror);
+			
+			if (json_arr->refcount!=0)
+					json_decref(json_arr);
 
-			json_decref(json_arr);
+			if (TheString->refcount!=0)
+					json_decref(TheString);
+
+			if (MyObject->refcount!=0)
+				json_decref(MyObject);
 		
-//			json_arr = NULL;
-
-
-//			applog(LOG_INFO, "Serialized size %d\n",serialized->size);
-//			stratum.sharediff = work->sharediff[0];
 
 		applog(LOG_INFO, "Submitting share %08lx to %s", (long unsigned int)htole32(hash32[6]), get_pool_name(pool));
 
@@ -6550,7 +6557,7 @@ static void *stratum_sthread_bos(void *userdata)
 					applog(LOG_INFO, "Pool %d stratum share submission lag time %d seconds",
 						pool->pool_no, ssdiff);
 				}
-
+			
 				HASH_ADD_INT(stratum_shares, id, sshare);
 				pool->sshares++;
 				mutex_unlock(&sshare_lock);
@@ -6592,14 +6599,15 @@ static void *stratum_sthread_bos(void *userdata)
 			pool->stale_shares++;
 			total_stale++;
 		}
+ 
 	}
 
 	/* Freeze the work queue but don't free up its memory in case there is
 	* work still trying to be submitted to the removed pool. */
 	tq_freeze(pool->stratum_q);
 	
-	if(MyObject!=NULL)
-		json_decref(MyObject);
+//	if(MyObject!=NULL)
+//		json_decref(MyObject);
 
 
 	return NULL;

@@ -431,9 +431,10 @@ bos_t *bos_serialize(json_t *value, json_error_t *error) {
 	/*(unsigned char*)*/buffer->pos += 4;
 	buffer->size = 4;
 
-	if (!write_value(value, buffer, error))
+	if (!write_value(value, buffer, error)) {
+		jsonp_free(buffer);
 		return NULL;
-
+	}
 	size = (uint32_t)buffer->size;
 	/*
 	buffer->pos = buffer->data;

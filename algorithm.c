@@ -1219,9 +1219,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 //	printf("coming in queue mtp kernel prev_job_id %s job_id %s\n", blk->work->prev_job_id, blk->work->job_id);
 	
 	uint32_t test = 1;
-	if (pool->swork.prev_job_id!=NULL) {
-		test = strcmp(pool->swork.prev_job_id, pool->swork.job_id);
-	}
+
 	if (buffer->prev_job_id != NULL) {
 		test = strcmp(buffer->prev_job_id, pool->swork.job_id);
 	}
@@ -1436,8 +1434,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 	//	mtp->ordered_tree = new MerkleTree(mtp->dx, true);
 		mtp->ordered_tree = call_new_MerkleTree(mtp->dx, true);
 
-		blk->work->prev_job_id = blk->work->job_id;
-		pool->swork.prev_job_id = pool->swork.job_id;
+
 		buffer->prev_job_id = pool->swork.job_id;
 
 		call_MerkleTree_getRoot(mtp->ordered_tree, mtp->TheMerkleRoot);
@@ -1454,14 +1451,14 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 //// hashing here
 	// DO NOT flip80.
-	
-	status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->root, CL_TRUE, 0, 4 * sizeof(uint32_t), mtp->TheMerkleRoot, 0, NULL, NULL);
-	if (status != CL_SUCCESS) {
-		applog(LOG_ERR, "Error %d with writing to root buffer.", status);
+	cl_int status1 = 0;
+	status1 = clEnqueueWriteBuffer(clState->commandQueue, buffer->root, CL_TRUE, 0, 4 * sizeof(uint32_t), mtp->TheMerkleRoot, 0, NULL, NULL);
+	if (status1 != CL_SUCCESS) {
+		applog(LOG_ERR, "Error %d with writing to root buffer.", status1);
 	}
-	status |= clEnqueueWriteBuffer(clState->commandQueue, clState->CLbuffer0, true, 0, 20 * sizeof(uint32_t), (unsigned char*)endiandata, 0, NULL, NULL);
-	if (status != CL_SUCCESS) {
-		applog(LOG_ERR, "Error %d with writing to CLbuffer0.", status);
+	status1 = clEnqueueWriteBuffer(clState->commandQueue, clState->CLbuffer0, true, 0, 20 * sizeof(uint32_t), (unsigned char*)endiandata, 0, NULL, NULL);
+	if (status1 != CL_SUCCESS) {
+		applog(LOG_ERR, "Error %d with writing to CLbuffer0.", status1);
 	}
 
 	size_t p_global_work_offset = buffer->StartNonce;
@@ -1477,14 +1474,17 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 	CL_SET_ARG(buffer->root);
 	CL_SET_ARG(clState->outputBuffer);
 	CL_SET_ARG(le_target);
-	uint32_t *Solution = (uint32_t*)malloc(1024);
-
-	status |= clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_yloop, 1, &p_global_work_offset, &Global2, &Local2, 0, NULL, NULL);
-	if (status != CL_SUCCESS) {
-		applog(LOG_ERR, "Error %d with kernel mtp_yloop.", status);
+	uint32_t Solution[256];
+    
+	status1 = clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_yloop, 1, &p_global_work_offset, &Global2, &Local2, 0, NULL, NULL);
+	if (status1 != CL_SUCCESS) {
+		applog(LOG_ERR, "Error %d with kernel mtp_yloop.", status1);
 	}
 	
-	status = clEnqueueReadBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0, buffersize, Solution, 0, NULL, NULL);
+	status1 = clEnqueueReadBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0, buffersize, Solution, 0, NULL, NULL);
+	if (status1 != CL_SUCCESS) {
+		applog(LOG_ERR, "Error reading Solution.", status1);
+	}
 	buffer->StartNonce += rawint;
 	if (Solution[0xff]) {
 //		uint256 TheUint256Target[1];
@@ -1511,7 +1511,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		} 
 		else {
 			Solution[0xff]=0;
-		status = clEnqueueWriteBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0, buffersize, Solution, 0, NULL, NULL);
+		status1 = clEnqueueWriteBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0, buffersize, Solution, 0, NULL, NULL);
 		printf("*************************************************************************************Not a solution\n");
 		}
 	}

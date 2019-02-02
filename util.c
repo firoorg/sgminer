@@ -1666,16 +1666,122 @@ json_t* recode_message(json_t *MyObject2)
 								json_array_append(json_arr2, value3);
 						}
 					}
-					//							json_t *json_arr2 = json_array();
-					//							json_array_append(json_arr, json_arr2);
+					if (json_arr2->refcount != 0)
+						json_decref(json_arr2);
 				}
 
 			}
 			json_decref(value2);
+		if (json_arr->refcount!=0)
+			json_decref(json_arr);
 		}
 	}
-//	json_decref(MyObject2);
+	if (value->refcount != 0)
+		json_decref(value);
+	json_decref(MyObject2);
 	return MyObject;
+}
+
+
+
+void recode_message2(json_t *MyObject, json_t *MyObject2)
+{
+	size_t size;
+	bool istarget = false;
+	const char *key;
+	json_t *value;
+	json_object_foreach(MyObject2, key, value) {
+
+		if (!strcmp(key, "method"))
+			if (!strcmp(json_string_value(value), "mining.set_target") ||
+				!strcmp(json_string_value(value), "mining.notify")
+				) {
+				istarget = false;
+			}
+
+
+		if (json_is_null(value))
+			json_object_set_new(MyObject, key, value);
+
+		if (json_is_string(value))
+			json_object_set_new(MyObject, key, value);
+		if (json_is_integer(value))
+			json_object_set_new(MyObject, key, value);
+
+		if (json_is_boolean(value))
+			json_object_set_new(MyObject, key, value);
+
+		if (json_is_array(value)) {
+			json_t *json_arr = json_array();
+			json_object_set(MyObject, key, json_arr);
+			size_t index;
+			json_t *value2 = NULL;
+
+			json_array_foreach(value, index, value2) {
+
+				if (!istarget) {
+					if (json_is_bytes(value2)) {
+						int zsize = json_bytes_size(value2);
+						unsigned char* zbyte = (unsigned char*)json_bytes_value(value2);
+						char* strval = (char*)malloc(zsize * 2 + 1);
+						for (int k = 0; k<zsize; k++)
+							sprintf(&strval[2 * k], "%02x", zbyte[k]);
+
+						json_array_append_new(json_arr, json_string(strval));
+						free(strval);
+						free(zbyte);
+
+					}
+				}
+				else {
+					if (json_is_bytes(value2)) {
+						json_array_append(json_arr, value2);
+					}
+				}
+				if (json_is_string(value2)) {
+					json_array_append(json_arr, value2);
+				}
+				if (json_is_boolean(value2)) {
+					json_array_append(json_arr, value2);
+				}
+				if (json_is_array(value2)) {
+					size_t index2;
+					json_t *value3;
+					json_t *json_arr2 = json_array();
+					json_array_append(json_arr, json_arr2);
+					json_array_foreach(value2, index2, value3) {
+						if (!istarget) {
+							if (json_is_bytes(value3)) {
+								int zsize = json_bytes_size(value3);
+								unsigned char* zbyte = (unsigned char*)json_bytes_value(value3);
+								char* strval = (char*)malloc(zsize * 2 + 1);
+								
+								for (int k = 0; k<zsize; k++)
+									sprintf(&strval[2 * k], "%02x", zbyte[k]);
+
+								json_array_append_new(json_arr2, json_string(strval));
+								free(strval);
+								free(zbyte);
+							}
+						}
+						else {
+							if (json_is_bytes(value3))
+								json_array_append(json_arr2, value3);
+						}
+					}
+					json_decref(json_arr2);
+				}
+
+			}
+			json_decref(value2);
+			if (json_arr->refcount != 0)
+				json_decref(json_arr);
+	//	json_decref(json_arr);
+		}
+	}	
+//if (value->refcount != 0)
+//		json_decref(value);
+	json_decref(MyObject2);
 }
 
 
@@ -1779,6 +1885,103 @@ out:
 }
 
 
+void recv_line_bos3(json_t* MyObject, struct pool *pool)
+{
+
+	char *tok, *sret = NULL;
+	ssize_t len, buflen;
+	int waited = 0;
+
+	uint32_t bossize = 0;
+
+	bool istarget = false;
+	if (!strstr(pool->sockbuf, "\n")) {
+		struct timeval rstart, now;
+
+		cgtime(&rstart);
+
+		if (pool->sockbuf_bossize == 0)
+			if (!socket_full(pool, DEFAULT_SOCKWAIT)) {
+				applog(LOG_DEBUG, "Timed out waiting for data on socket_full");
+				goto out;
+			}
+
+		do {
+			char s[RBUFSIZE];
+			size_t slen;
+			ssize_t n;
+
+			memset(s, 0, RBUFSIZE);
+			n = recv(pool->sock, s, RECVSIZE, 0);
+
+			if (!n) {
+
+				applog(LOG_DEBUG, "Socket closed waiting in recv_line");
+				//	suspend_stratum(pool);
+				break;
+			}
+			cgtime(&now);
+			waited = tdiff(&now, &rstart);
+			if (n < 0) {
+
+				if (pool->sockbuf_bossize != 0)
+					break;
+				else if (!sock_blocks() || !socket_full(pool, 5 - waited)) {
+
+					applog(LOG_DEBUG, "Failed to recv sock in recv_line");
+					suspend_stratum(pool);
+					break;
+				}
+
+			}
+			else {
+
+				recalloc_sock_bos(pool, n);
+				memcpy(pool->sockbuf + pool->sockbuf_bossize, s, n);
+				pool->sockbuf_bossize += n;
+			}
+
+		} while (waited < DEFAULT_SOCKWAIT && !strstr(pool->sockbuf, "\n"));
+	}
+
+
+	len = pool->sockbuf_bossize;
+
+	json_error_t boserror;
+	if (bos_sizeof(pool->sockbuf) < pool->sockbuf_bossize) {
+		//				MyObject2 = bos_deserialize(s + bos_sizeof(s), boserror);
+		recode_message2(MyObject,bos_deserialize(pool->sockbuf, &boserror));
+	}
+	else if (bos_sizeof(pool->sockbuf) > pool->sockbuf_bossize)
+		printf("missing something in message \n");
+	else
+		recode_message2(MyObject, bos_deserialize(pool->sockbuf, &boserror));
+	
+	if (bos_sizeof(pool->sockbuf)<pool->sockbuf_bossize) {
+		uint32_t totsize = pool->sockbuf_bossize;
+		uint32_t remsize = pool->sockbuf_bossize - bos_sizeof(pool->sockbuf);
+		uint32_t currsize = bos_sizeof(pool->sockbuf);
+		memmove(pool->sockbuf, pool->sockbuf + currsize, remsize);
+		pool->sockbuf_bossize = remsize;
+	}
+	else {
+		pool->sockbuf[0] = '\0';
+		pool->sockbuf_bossize = 0;
+	}
+
+
+	pool->sgminer_pool_stats.times_received++;
+	pool->sgminer_pool_stats.bytes_received += len;
+	pool->sgminer_pool_stats.net_bytes_received += len;
+out:
+	if (MyObject==NULL)
+			clear_sock(pool);
+	if (opt_protocol)
+		applog(LOG_DEBUG, "RECVD: %s", json_dumps(MyObject, 0));
+return;
+}
+
+
 json_t *recv_line_bos2(struct pool *pool)
 {
 
@@ -1845,12 +2048,12 @@ json_t *recv_line_bos2(struct pool *pool)
 	json_error_t boserror;
 	if (bos_sizeof(pool->sockbuf) < pool->sockbuf_bossize) {
 		//				MyObject2 = bos_deserialize(s + bos_sizeof(s), boserror);
-		MyObject = recode_message(bos_deserialize(pool->sockbuf, &boserror));
+		recode_message2(MyObject,bos_deserialize(pool->sockbuf, &boserror));
 	}
 	else if (bos_sizeof(pool->sockbuf) > pool->sockbuf_bossize)
 		printf("missing something in message \n");
 	else
-		MyObject = recode_message(bos_deserialize(pool->sockbuf, &boserror));
+		recode_message2(MyObject, bos_deserialize(pool->sockbuf, &boserror));
 	
 	if (bos_sizeof(pool->sockbuf)<pool->sockbuf_bossize) {
 		uint32_t totsize = pool->sockbuf_bossize;
@@ -1875,6 +2078,7 @@ out:
 		applog(LOG_DEBUG, "RECVD: %s", json_dumps(MyObject, 0));
 	return MyObject;
 }
+
 
 
 /* Extracts a string value from a json array with error checking. To be used
@@ -3203,10 +3407,8 @@ out:
 bool auth_stratum_bos(struct pool *pool)
 {
 
-	json_t *val = NULL, *res_val, *err_val, *res_id, *res_job;
-	char s[RBUFSIZE];
-
-	json_error_t err;
+	json_t *val=NULL, *res_val, *err_val, *res_id, *res_job;
+	
 	bool ret = false;
 
 	json_t *MyObject = json_object();
@@ -3227,7 +3429,7 @@ bool auth_stratum_bos(struct pool *pool)
 	/* Parse all data in the queue and anything left should be auth */
 	while (42) {
 		val = recv_line_bos2(pool);
-
+		/*recv_line_bos3(val,pool);*/
 		if (val==NULL) {
 			return ret;
 		}

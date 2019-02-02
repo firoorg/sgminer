@@ -1591,9 +1591,6 @@ struct work {
 
 	uint32_t XMRNonce;
 
-//	mtp mtpPOW;
-
-
 	unsigned char equihash_data[1487];
 
 	int   rolls;
