@@ -13,7 +13,7 @@
 #undef NVIDIA_GPU
 #define NVIDIA_GPU 1
 #endif
-
+#define NVIDIA_GPU 1
 #pragma OPENCL EXTENSION cl_clang_storage_class_specifiers : enable
 typedef unsigned long uint64_t;
 typedef uint uint32_t;
@@ -602,14 +602,15 @@ static unsigned warp_id()
 	return ret;
 }
 #endif
-#define LEN 32
-#define FARLOAD(x) far[warp][(x) + lane*(32+SHR_OFF)]
-#define FARSTORE(x) far[warp][lane + (x)*(32+SHR_OFF)]
+#define LEN 8
+#define DIV 32
+#define FARLOAD(x) far[warp][(x) + lane*(LEN+SHR_OFF)]
+#define FARSTORE(x) far[warp][lane + (x)*(LEN+SHR_OFF)]
 #define SHR_OFF 0
-#define TPB_MTP 64
+#define TPB_MTP WORKSIZE
 
 __attribute__((reqd_work_group_size(TPB_MTP, 1, 1)))
-__kernel void mtp_yloop(__global unsigned int* pData, __global const uint4  * __restrict__ DBlock, __global const uint4  * __restrict__ DBlock2,
+__kernel void mtp_yloop(__global unsigned int* pData, __global const ulong2  * __restrict__ DBlock, __global const ulong2  * __restrict__ DBlock2,
 __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint pTarget)
 {
 //if (get_global_id(0)==0)
@@ -619,9 +620,9 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 	uint32_t event_thread = get_global_id(0) - get_global_offset(0); //thread / ThreadNumber;
 
 	uint32_t NonceIterator = get_global_id(0);
-	int lane = get_local_id(0) % 32;
-	int warp = get_local_id(0) / 32;;//warp_id();
-	__local  ulong2 far[TPB_MTP/ 32][8 * (32 + SHR_OFF)];
+	int lane = get_local_id(0) % DIV;
+	int warp = get_local_id(0) / DIV;;//warp_id();
+	__local  ulong2 far[TPB_MTP/ DIV][DIV * (LEN + SHR_OFF)];
 	 uint32_t farIndex;
 	const uint32_t half_memcost = 2 * 1024 * 1024;
 	 const uint64_t lblakeFinal[8] =
@@ -635,10 +636,9 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 		0x1f83d9abfb41bd6bUL,
 		0x5be0cd19137e2179UL, 
 	};
-		__global const ulong2 *	 __restrict__ GBlock = &((__global ulong2*)DBlock)[0];
-		__global const ulong2 *	 __restrict__ GBlock2 = &((__global ulong2*)DBlock2)[0];
+
 		uint8 YLocal;
-		uint8 YLocalPrint;
+
 
 		ulong8 DataChunk[2] = { 0 };
 	
@@ -652,8 +652,6 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 
 		blake2b_compress2_256((uint64_t*)&YLocal, lblakeFinal, (uint64_t*)DataChunk, 100);
 		
-		YLocalPrint = YLocal;
-
 		bool init_blocks;
 		uint32_t unmatch_block;
 		//		uint32_t localIndex;
@@ -663,20 +661,14 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 		#pragma unroll 1
 		for (int j = 1; j <= mtp_L; j++)
 		{
-
-			//				localIndex = YLocal.s0%(argon_memcost);
-			//				localIndex = YLocal.s0 & 0x3FFFFF;
-			//			uint64_t farIndex[8];
-
-
 			#pragma unroll
 			for (int t = 0; t<2; t++) {
 				ulong2 *D = (ulong2*)&YLocal;
 				FARLOAD(t + 6) = D[t];
-
 			}
-			farIndex = YLocal.s0 & 0x3FFFFF;
 			barrier(CLK_LOCAL_MEM_FENCE);
+			farIndex = YLocal.s0 & 0x3FFFFF;
+
 
 			ulong8 DataChunk[2];
 			uint32_t len = 0;
@@ -706,10 +698,10 @@ __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint
 					#pragma unroll 
 					for (int t = 0; t<8; t++) {
 
-						__global ulong2 *farP = (farIndex<half_memcost)?  (__global ulong2*)&GBlock[farIndex * 64 + 0 + 8 * i + 0]
-																				 : (__global ulong2*)&GBlock2[(farIndex - half_memcost) * 64 + 0 + 8 * i + 0];
+						__global const ulong2 * __restrict__ farP = (farIndex<half_memcost)?  &DBlock[farIndex * 64 + 8 * i]
+																				            : &DBlock2[(farIndex - half_memcost) * 64 + 8 * i];
 
-						FARLOAD(t) = (last) ? (ulong2)(0, 0) : farP[t];
+						FARLOAD(t) = (last) ? (ulong2)(0, 0) :  vload2(0,(__global ulong * )&farP[t]);
 					}
 
 					barrier(CLK_LOCAL_MEM_FENCE);

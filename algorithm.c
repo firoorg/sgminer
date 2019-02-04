@@ -56,6 +56,7 @@
 const char *algorithm_type_str[] = {
   "mtp",
   "mtp_vega",
+  "mtp_nvidia",
   "Unknown",
   "Credits",
   "Scrypt",
@@ -1194,7 +1195,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 {
 	struct pool *pool = blk->work->pool;
 	mtp_cache_t *mtp = &blk->work->thr->cgpu->mtp_buffer.mtp_cache; 
-
+	size_t worksize = clState->wsize;
 	cl_kernel *kernel;
 	unsigned int num = 0;
 	cl_int status = 0;
@@ -1465,8 +1466,9 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 	uint32_t rawint = 2 << (blk->work->thr->cgpu->intensity - 1);
 	kernel = &clState->mtp_yloop;
 	size_t Global2 = rawint ; //1048576; //65536;
-	size_t Local2 = 64;
+	size_t Local2 = worksize;
 	size_t buffersize = 1024;
+
 	num = 0; 
 	CL_SET_ARG(clState->CLbuffer0);
 	CL_SET_ARG(buffer->hblock);
@@ -1721,6 +1723,7 @@ static algorithm_settings_t algos[] = {
   { "lyra2h"   , ALGO_LYRA2H   , "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, lyra2h_regenhash   , precalc_hash_blake256, queue_lyra2h_kernel   , gen_hash, NULL },
   { "mtp"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
   { "mtp_vega"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp_nvidia"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
 
   // kernels starting from this will have difficulty calculated by using fuguecoin algorithm
 #define A_FUGUE(a, b, c) \
