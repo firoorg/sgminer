@@ -1510,6 +1510,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		memcpy(pool->mtp_cache.mtpPOW.nProofMTP, nProofMTP, sizeof(unsigned char)* MTP_L * 3 * 353);
 		pool->mtp_cache.mtpPOW.TheNonce = Solution[0];
 		((uint32_t*)blk->work->data)[19] = Solution[0];
+		Solution[0xff]=1; // avoid duplicate ?
 //			printf("*************************************************************************************Found a solution\n");
 		} 
 		else {
