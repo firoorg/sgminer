@@ -5702,6 +5702,8 @@ static bool parse_stratum_response_bos(struct pool *pool, json_t *val)
 
 		goto out;
 	}
+//	else 
+//		ret = true;
 
 	id = json_integer_value(id_val);
 
@@ -5724,44 +5726,9 @@ static bool parse_stratum_response_bos(struct pool *pool, json_t *val)
 		cg_runlock(&pool->data_lock);
 
 		//for cryptonight, the result contains the "status" object which should = "OK" on accept
-		if (pool->algorithm.type == ALGO_CRYPTONIGHT) {
-			json_t *res_id, *res_job;
 
-			//check if the result contains an id... if so then we need to process as first job, not share response
-			if ((res_id = json_object_get(res_val, "id"))) {
-				cg_wlock(&pool->data_lock);
-				strcpy(pool->XMRAuthID, json_string_value(res_id));
-				cg_wunlock(&pool->data_lock);
-
-				//get the job object and send to parse notify
-				if ((res_job = json_object_get(res_val, "job"))) {
-					ret = parse_notify_cn(pool, res_job);
-				}
-
-				goto out;
-			}
-
-			if (json_is_null(err_val) && !strcmp(json_string_value(json_object_get(res_val, "status")), "OK")) {
-				success = true;
-			}
-			else {
-				char *ss;
-
-				if (err_val) {
-					ss = json_dumps(err_val, JSON_INDENT(3));
-				}
-				else {
-					ss = strdup("(unknown reason)");
-				}
-
-				applog(LOG_INFO, "JSON-RPC response decode failed: %s", ss);
-
-				free(ss);
-			}
-		}
-		else {
 			success = json_is_true(res_val);
-		}
+		
 
 		if (success) {
 			applog(LOG_NOTICE, "Accepted untracked stratum share from %s", get_pool_name(pool));
@@ -5774,6 +5741,7 @@ static bool parse_stratum_response_bos(struct pool *pool, json_t *val)
 			total_diff_accepted += pool_diff;
 			pool->diff_accepted += pool_diff;
 			mutex_unlock(&stats_lock);
+//			ret = true;
 		}
 		else {
 			applog(LOG_NOTICE, "Rejected untracked stratum share from %s", get_pool_name(pool));
@@ -5784,6 +5752,7 @@ static bool parse_stratum_response_bos(struct pool *pool, json_t *val)
 			total_diff_rejected += pool_diff;
 			pool->diff_rejected += pool_diff;
 			mutex_unlock(&stats_lock);
+//			ret = true;
 		}
 		goto out;
 	}
@@ -6106,7 +6075,7 @@ static void *stratum_rthread_bos(void *userdata)
 
 		FD_ZERO(&rd);
 		FD_SET(pool->sock, &rd);
-		timeout.tv_sec = 90;
+		timeout.tv_sec = 150;
 		timeout.tv_usec = 0;
 
 		/* The protocol specifies that notify messages should be sent
@@ -6156,7 +6125,7 @@ static void *stratum_rthread_bos(void *userdata)
 		applog(LOG_DEBUG, "%s: parsing the object...");
 
 		if (!parse_method_bos(pool, s) && !parse_stratum_response_bos(pool, s))
-			applog(LOG_INFO, "Unknown stratum msg ");
+			applog(LOG_DEBUG, "Unknown stratum msg ");
 		else if (pool->swork.clean) {
 			struct work *work = make_work();
 

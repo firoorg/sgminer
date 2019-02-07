@@ -557,8 +557,12 @@ static unsigned warp_id()
 
 #define FARLOAD(x) far[warp][(x)*(8+SHR_OFF) + lane]
 #define FARSTORE(x) far[warp][lane*(8+SHR_OFF) + (x)]
-#define SHR_OFF 1
+#define SHR_OFF 0
+#ifdef WORKSIZE
 #define TPB_MTP WORKSIZE
+#else 
+#define TPB_MTP 32
+#endif
 
 __attribute__((reqd_work_group_size(TPB_MTP, 1, 1)))
 __kernel void mtp_yloop(__global unsigned int* pData, __global const ulong2  * __restrict__ DBlock, __global const ulong2  * __restrict__ DBlock2,
@@ -612,11 +616,6 @@ __kernel void mtp_yloop(__global unsigned int* pData, __global const ulong2  * _
 #pragma unroll 1
 	for (int j = 1; j <= mtp_L; j++)
 	{
-
-		//				localIndex = YLocal.s0%(argon_memcost);
-		//				localIndex = YLocal.s0 & 0x3FFFFF;
-		//			uint64_t farIndex[8];
-
 
 #pragma unroll
 		for (int t = 0; t<2; t++) {

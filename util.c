@@ -3230,7 +3230,7 @@ bool parse_method_bos(struct pool *pool, json_t *val)
 		ret = true;
 		goto done;
 	}
-
+	if (ret==false)  printf("the false buf %s\n",buf);
 done:
 
 	return ret;

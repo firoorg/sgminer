@@ -887,6 +887,13 @@ out:
 		  applog(LOG_ERR, "Error %d: Creating Kernel \"mtp_fc\" from program. (clCreateKernel)", status);
 		  return NULL;
 	  }
+/*
+	  clState->mtp_yloop_init = clCreateKernel(clState->program, "mtp_yloop_init", &status);
+	  if (status != CL_SUCCESS) {
+		  applog(LOG_ERR, "Error %d: Creating Kernel \"mtp_yloop_init\" from program. (clCreateKernel)", status);
+		  return NULL;
+	  }
+*/
 	  clState->mtp_yloop = clCreateKernel(clState->program, "mtp_yloop", &status);
 	  if (status != CL_SUCCESS) {
 		  applog(LOG_ERR, "Error %d: Creating Kernel \"mtp_yloop\" from program. (clCreateKernel)", status);

@@ -25,8 +25,8 @@ typedef struct __clState {
 
 
   cl_kernel mtp_fc; //initialization
+  cl_kernel mtp_yloop_init; // main kernel
   cl_kernel mtp_yloop; // main kernel
-
 
   size_t n_extra_kernels;
   cl_command_queue commandQueue;
