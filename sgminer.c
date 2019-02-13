@@ -298,7 +298,7 @@ static char datestamp[40];
 static char blocktime[32];
 struct timeval block_timeval;
 static char best_share[8] = "0";
-double current_diff = 0xFFFFFFFFFFFFFFFFULL;
+double current_diff = (double)0xFFFFFFFFFFFFFFFFULL;
 static char block_diff[8];
 double best_diff = 0;
 
@@ -2158,8 +2158,15 @@ static double get_work_blockdiff(const struct work *work)
   }
   else {
     uint8_t pow = work->data[72];
+
     int powdiff = (8 * (0x1d - 3)) - (8 * (pow - 3));;
+//		powdiff = 0;
+if (work->pool->algorithm.type != ALGO_MTP)
     diff64 = be32toh(*((uint32_t *)(work->data + 72))) & 0x0000000000FFFFFF;
+else {
+	powdiff = 0;
+	diff64 = le32toh(*((uint32_t *)(work->data + 72))) & 0x0000000000FFFFFF;
+	}
     numerator = work->pool->algorithm.diff_numerator << powdiff;
   }
 
@@ -2779,7 +2786,7 @@ static void get_statline(char *buf, size_t bufsiz, struct cgpu_info *cgpu)
   char displayed_hashes[16], displayed_rolling[16];
   double dev_runtime, wu;
   double dh64, dr64;
-
+ 
   dev_runtime = cgpu_runtime(cgpu);
 
   wu = cgpu->diff1 / dev_runtime * 60.0;
@@ -2795,8 +2802,12 @@ static void get_statline(char *buf, size_t bufsiz, struct cgpu_info *cgpu)
     opt_log_interval,
     displayed_rolling,
     displayed_hashes,
+	cgpu->accepted,
+	cgpu->rejected,
+/*
     cgpu->diff_accepted,
     cgpu->diff_rejected,
+*/
     cgpu->hw_errors,
     wu);
   cgpu->drv->get_statline(buf, bufsiz, cgpu);
@@ -5504,10 +5515,11 @@ static void hashmeter(int thr_id, struct timeval *diff,
   suffix_string(dr64, displayed_rolling, sizeof(displayed_rolling), 4);
 
   snprintf(statusline, sizeof(statusline),
-    "%s(%ds):%s (avg):%sh/s | A:%.0f  R:%.0f  HW:%d  WU:%.3f/m",
+    "%s(%ds):%s (avg):%sh/s | A:%d  R:%d  HW:%d  WU:%.3f/m",
     want_per_device_stats ? "ALL " : "",
     opt_log_interval, displayed_rolling, displayed_hashes,
-    total_diff_accepted, total_diff_rejected, hw_errors,
+	total_accepted, total_rejected,
+    /*total_diff_accepted, total_diff_rejected*,*/ hw_errors,
     total_diff1 / total_secs * 60);
 
   local_mhashes_done = 0;
@@ -5641,8 +5653,9 @@ static bool parse_stratum_response(struct pool *pool, char *s)
       /* We don't know what device this came from so we can't
        * attribute the work to the relevant cgpu */
       mutex_lock(&stats_lock);
-      total_accepted++;
+
       pool->accepted++;
+	  total_accepted = pool->accepted;
       total_diff_accepted += pool_diff;
       pool->diff_accepted += pool_diff;
       mutex_unlock(&stats_lock);
@@ -5650,8 +5663,9 @@ static bool parse_stratum_response(struct pool *pool, char *s)
       applog(LOG_NOTICE, "Rejected untracked stratum share from %s", get_pool_name(pool));
 
       mutex_lock(&stats_lock);
-      total_rejected++;
+//      total_rejected++;
       pool->rejected++;
+	  total_rejected = pool->rejected;
       total_diff_rejected += pool_diff;
       pool->diff_rejected += pool_diff;
       mutex_unlock(&stats_lock);
@@ -5683,7 +5697,6 @@ static bool parse_stratum_response_bos(struct pool *pool, json_t *val)
 		applog(LOG_INFO, "JSON decode failed: ");
 		goto out;
 	}
-
 	res_val = json_object_get(val, "result");
 	err_val = json_object_get(val, "error");
 	id_val = json_object_get(val, "id");
@@ -5731,8 +5744,7 @@ static bool parse_stratum_response_bos(struct pool *pool, json_t *val)
 		
 
 		if (success) {
-			applog(LOG_NOTICE, "Accepted untracked stratum share from %s", get_pool_name(pool));
-
+			applog(LOG_NOTICE, "Accepted untracked stratum share from %s diff %f", get_pool_name(pool),pool_diff);
 			/* We don't know what device this came from so we can't
 			* attribute the work to the relevant cgpu */
 			mutex_lock(&stats_lock);
@@ -5756,6 +5768,7 @@ static bool parse_stratum_response_bos(struct pool *pool, json_t *val)
 		}
 		goto out;
 	}
+
 	stratum_share_result(val, res_val, err_val, sshare);
 	free_work(sshare->work);
 	free(sshare);
@@ -6475,7 +6488,7 @@ static void *stratum_sthread_bos(void *userdata)
 			hex2bin(hexjob_id, work->job_id, 8);
 			json_t *json_arr =json_array();
 		
-			json_object_set_new(MyObject, "id", json_integer(4));
+			json_object_set_new(MyObject, "id", json_integer(sshare->id));
 			json_object_set_new(MyObject, "method", json_string("mining.submit"));
 
 			
@@ -8197,6 +8210,8 @@ bool test_nonce(struct work *work, uint32_t nonce)
 
 static void update_work_stats(struct thr_info *thr, struct work *work)
 {
+	
+
   double test_diff = current_diff;
   test_diff *= work->pool->algorithm.share_diff_multiplier;
 

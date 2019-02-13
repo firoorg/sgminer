@@ -2844,11 +2844,31 @@ static bool parse_diff(struct pool *pool, json_t *val)
 
   return true;
 }
+double target_to_diff(unsigned char* tgt)
+{
+//	unsigned char* tgt = (unsigned char*)target;
+	uint64_t m =
+		(uint64_t)tgt[29] << 56 |
+		(uint64_t)tgt[28] << 48 |
+		(uint64_t)tgt[27] << 40 |
+		(uint64_t)tgt[26] << 32 |
+		(uint64_t)tgt[25] << 24 |
+		(uint64_t)tgt[24] << 16 |
+		(uint64_t)tgt[23] << 8 |
+		(uint64_t)tgt[22] << 0;
+
+	if (!m)
+		return 0.;
+	else
+//		return (double)0x0000ffff00000000 / m;
+		return (double)0x00000000ffffffff / m;
+}
 
 static bool parse_target(struct pool *pool, json_t *val)
 {
   uint8_t oldtarget[32], target[32], *str;
-
+  uint8_t sbtarget[32];
+  const double truediffone = 26959535291011309493156476344723991336010898738574164086137773096960.0;
   if ((str = (uint8_t*)json_array_string(val, 0)) == NULL) {
     applog(LOG_DEBUG, "parse_target: Missing an array value.");
     return false;
@@ -2858,14 +2878,33 @@ static bool parse_target(struct pool *pool, json_t *val)
 
   cg_wlock(&pool->data_lock);
   memcpy(oldtarget, pool->Target, 32);
-if (pool->algorithm.type == ALGO_MTP)
+if (pool->algorithm.type == ALGO_MTP) {
+	double old_diff, diff;
+	swab256(sbtarget, target);
+	diff = (truediffone*1)/le256todouble(target);
+//	diff = ((double)1)/ le256todouble(target);
+//printf("diff %f = truediffone %f  by le256todouble %f\n",diff, (double)0x0000ffff00000000, le256todouble(sbtarget));
+//	diff = target_to_diff(target);
+//	diff = (double)0x0000ffff00000000 / diff;
 	memcpy(pool->Target,target,32);
-else 
+	if (pool->next_diff > 0) {
+		old_diff = pool->next_diff;
+		pool->next_diff = diff;
+	}
+	else {
+		old_diff = pool->swork.diff;
+		pool->next_diff = pool->swork.diff = diff;
+	}
+
+		applog(pool == current_pool() ? LOG_NOTICE : LOG_DEBUG, "%s difficulty changed to %.3f", get_pool_name(pool), diff);
+
+} else 
   swab256(pool->Target, target);
   cg_wunlock(&pool->data_lock);
 
   if (memcmp(oldtarget, target, 32) != 0) {
     applog(pool == current_pool() ? LOG_NOTICE : LOG_DEBUG, "%s target changed to %s", get_pool_name(pool), str);
+	
   }
 
   if (str != NULL) {

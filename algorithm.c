@@ -58,6 +58,8 @@ const char *algorithm_type_str[] = {
   "mtp_vega",
   "mtp_nvidia",
   "mtp_nvidia2",
+  "mtp_nvidia3",
+  "mtp_nvidia4",
   "Unknown",
   "Credits",
   "Scrypt",
@@ -1510,13 +1512,16 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		memcpy(pool->mtp_cache.mtpPOW.nProofMTP, nProofMTP, sizeof(unsigned char)* MTP_L * 3 * 353);
 		pool->mtp_cache.mtpPOW.TheNonce = Solution[0];
 		((uint32_t*)blk->work->data)[19] = Solution[0];
+        memcpy(blk->work->hash, mtpHashValue,32);
 		Solution[0xff]=1; // avoid duplicate ?
 //			printf("*************************************************************************************Found a solution\n");
 		} 
 		else {
 			Solution[0xff]=0;
+			hw_errors++;
+			blk->work->thr->cgpu->hw_errors++;
+			blk->work->thr->cgpu->drv->hw_error(blk->work->thr);
 		status1 = clEnqueueWriteBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0, buffersize, Solution, 0, NULL, NULL);
-		printf("*************************************************************************************Not a solution\n");
 		}
 	}
 //	clFinish(clState->commandQueue);
@@ -2077,17 +2082,19 @@ static algorithm_settings_t algos[] = {
   { "lyra2rev2", ALGO_LYRA2REV2, "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 6, -1, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, lyra2rev2_regenhash, precalc_hash_blake256, queue_lyra2rev2_kernel, gen_hash, append_neoscrypt_compiler_options },
   { "lyra2Z"   , ALGO_LYRA2Z   , "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, lyra2Z_regenhash   , precalc_hash_blake256, queue_lyra2z_kernel   , gen_hash, NULL },
   { "lyra2h"   , ALGO_LYRA2H   , "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, lyra2h_regenhash   , precalc_hash_blake256, queue_lyra2h_kernel   , gen_hash, NULL },
-  { "mtp"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-  { "mtp_vega"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-  { "mtp_nvidia"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-  { "mtp_nvidia2"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-
+  { "mtp"           , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp_vega"      , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp_nvidia"    , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp_nvidia2"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp_nvidia3"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp_nvidia4"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp_nvidia5"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
   // kernels starting from this will have difficulty calculated by using fuguecoin algorithm
 #define A_FUGUE(a, b, c) \
   { a, ALGO_FUGUE, "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 0, 0, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, b, NULL, queue_sph_kernel, c, NULL }
   A_FUGUE("fuguecoin", fuguecoin_regenhash, sha256),
   A_FUGUE("groestlcoin", groestlcoin_regenhash, sha256),
-  A_FUGUE("diamond", groestlcoin_regenhash, gen_hash),
+  A_FUGUE("diamond", groestlcoin_regenhash, gen_hash), 
 #undef A_FUGUE
 
   { "whirlcoin", ALGO_WHIRL, "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 3, 8 * 16 * 4194304, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, whirlcoin_regenhash, NULL, queue_whirlcoin_kernel, sha256, NULL },
