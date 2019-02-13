@@ -763,7 +763,7 @@ __global uint4 * Elements)
 	}
 
 __attribute__((reqd_work_group_size(TPB_MTP, 1, 1)))
-__kernel void mtp_yloop(__global unsigned int* pData, __global const ulong2  * __restrict__ DBlock, __global const ulong2  * __restrict__ DBlock2,
+__kernel void mtp_yloop(__global unsigned int* pData, __global const ulong8  * __restrict__ DBlock, __global const ulong8  * __restrict__ DBlock2,
 __global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce,  uint pTarget)
 /*
 __attribute__((reqd_work_group_size(TPB_MTP, 1, 1)))
@@ -840,12 +840,12 @@ __global uint8  *  GYlocal, __global uint32_t * __restrict__ SmallestNonce,  uin
 				len += last ? 32 : 128;
 				
 				
-					__global const ulong2 * __restrict__ farP = (farIndex<half_memcost)?  &DBlock[farIndex * 64 + 8 * i ]
-																																							: &DBlock2[(farIndex - half_memcost) * 64 + 8 * i];
+					__global const ulong8 * __restrict__ farP = (farIndex<half_memcost)?  &DBlock[farIndex * 16 + 2 * i ]
+															: &DBlock2[(farIndex - half_memcost) * 16 + 2 * i];
 					
 					#pragma unroll 
-					for (int t = 0; t<8; t++) 
-						(( ulong2*)DataChunk)[t] = (last) ? (ulong2)(0, 0) : farP[t];
+					for (int t = 0; t<2; t++) 
+						(( ulong8*)DataChunk)[t] = (last) ? (ulong8)(0, 0,0,0,0,0,0,0) : farP[t];
 					
 			//	(( uint16*)DataChunk)[0].lo = YLocal;
 
