@@ -130,6 +130,21 @@ static inline uint64_t ROTR64X(const uint64_t x2, const int y) {
 #endif
 
 
+#if NVIDIA_GPU == 1
+static unsigned lane_id()
+{
+	unsigned ret;
+	asm volatile ("mov.u32 %0, %%laneid;" : "=r"(ret));
+	return ret;
+}
+#else
+static unsigned lane_id()
+{
+	return get_local_id(0);
+}
+#endif
+
+
 
 
 static inline uint2 ROR2(uint2 v, unsigned a) {
@@ -538,25 +553,150 @@ static inline int blake2b_compress2b(uint64_t *hzcash, const uint64_t * __restri
 	return 0;
 }
 
-#if PLATFORM == OPENCL_PLATFORM_NVIDIA && COMPUTE >= 35
+
+static inline int blake2b_compress2b_new(uint64_t *hzcash, const __local ulong4 * __restrict__ block, const uint64_t * __restrict__ block0,const uint32_t len, int last)
+{
+	int lane = lane_id() % 4;
+
+	uint64_t m[16];
+	uint64_t v[16];
+
+	const uint64_t blakeIV_[8] = {
+		0x6a09e667f3bcc908UL,
+		0xbb67ae8584caa73bUL,
+		0x3c6ef372fe94f82bUL,
+		0xa54ff53a5f1d36f1UL,
+		0x510e527fade682d1UL,
+		0x9b05688c2b3e6c1fUL,
+		0x1f83d9abfb41bd6bUL,
+		0x5be0cd19137e2179UL
+	};
+	
+	#pragma unroll
+	for (int i = 0; i < 4; ++i)
+	m[i] = block0[i];
+
+	#pragma unroll
+	for (int i = 1; i < 4; ++i)
+		((ulong4*)m)[i] = block[(i-1)*4  + lane];
+	
+#pragma unroll
+	for (int i = 0; i < 8; ++i)
+		v[i] = hzcash[i];
+
+
+
+
+	v[8] = blakeIV_[0];
+	v[9] = blakeIV_[1];
+	v[10] = blakeIV_[2];
+	v[11] = blakeIV_[3];
+	v[12] = blakeIV_[4];
+	v[12] ^= len;
+	v[13] = blakeIV_[5];
+	v[14] = last ? ~blakeIV_[6] : blakeIV_[6];
+	v[15] = blakeIV_[7];
+
+	/*
+	if(!thread){
+	printf("0x%llxULL\n", v[12]);
+	}*/
+
+#define G(r,i,a,b,c,d) \
+   { \
+     v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
+     v[d] = eorswap64(v[d] , v[a]); \
+     v[c] += v[d]; \
+     v[b] = ROTR64X(v[b] ^ v[c], 24); \
+     v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
+     v[d] = ROTR64X(v[d] ^ v[a], 16); \
+     v[c] += v[d]; \
+     v[b] = ROTR64X(v[b] ^ v[c], 63); \
+  } 
+#define ROUND(r)  \
+  { \
+    G(r,0, 0,4,8,12); \
+    G(r,1, 1,5,9,13); \
+    G(r,2, 2,6,10,14); \
+    G(r,3, 3,7,11,15); \
+    G(r,4, 0,5,10,15); \
+    G(r,5, 1,6,11,12); \
+    G(r,6, 2,7,8,13); \
+    G(r,7, 3,4,9,14); \
+  } 
+
+#define H(r,i,a,b,c,d) \
+   { \
+     v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
+     v[d] = eorswap64(v[d] , v[a]); \
+     v[c] += v[d]; \
+     v[b] = ROTR64X(v[b] ^ v[c], 24); \
+     v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
+     v[d] = ROTR64X(v[d] ^ v[a], 16); \
+     v[c] += v[d]; \
+  } 
+
+#define ROUNDF  \
+  { \
+    G(11,0, 0,4,8,12); \
+    G(11,1, 1,5,9,13); \
+    G(11,2, 2,6,10,14); \
+    G(11,3, 3,7,11,15); \
+    if(!last){\
+    G(11,4, 0,5,10,15); \
+    G(11,5, 1,6,11,12); \
+    G(11,6, 2,7,8,13); \
+    G(11,7, 3,4,9,14); \
+    }else{\
+    H(11,4, 0,5,10,15); \
+    H(11,5, 1,6,11,12); \
+    H(11,6, 2,7,8,13); \
+    H(11,7, 3,4,9,14); \
+    }\
+  }
+
+
+	ROUND(0);
+	ROUND(1);
+	ROUND(2);
+	ROUND(3);
+	ROUND(4);
+	ROUND(5);
+	ROUND(6);
+	ROUND(7);
+	ROUND(8);
+	ROUND(9);
+	ROUND(10);
+	ROUND(11);
+
+	for (int i = 0; i < 8; ++i)
+		hzcash[i] ^= v[i] ^ v[i + 8];
+
+#undef G
+#undef ROUND
+	return 0;
+}
+
+
+
+
+#if NVIDIA_GPU == 1
 static unsigned lane_id()
 {
 	unsigned ret;
-	asm volatile ("mov.u32 %0, %laneid;" : "=r"(ret));
+	asm volatile ("mov.u32 %0, %%laneid;" : "=r"(ret));
 	return ret;
 }
-
-static unsigned warp_id()
+#else
+static unsigned lane_id()
 {
-	// this is not equal to threadIdx.x / 32
-	unsigned ret;
-	asm volatile ("mov.u32 %0, %warpid;" : "=r"(ret));
-	return ret;
+	return get_local_id(0);
 }
 #endif
 
-#define FARLOAD(x) far[warp][(x)*(8+SHR_OFF) + lane]
-#define FARSTORE(x) far[warp][lane*(8+SHR_OFF) + (x)]
+
+#define FARLOAD(x) far[warp][(x)*(4+SHR_OFF) + lane]
+#define FARSTORE(x) far[warp][lane*(4+SHR_OFF) + (x)]
 #define SHR_OFF 0
 #ifdef WORKSIZE
 #define TPB_MTP WORKSIZE
@@ -565,7 +705,7 @@ static unsigned warp_id()
 #endif
 
 __attribute__((reqd_work_group_size(TPB_MTP, 1, 1)))
-__kernel void mtp_yloop(__global unsigned int* pData, __global const ulong2  * __restrict__ DBlock, __global const ulong2  * __restrict__ DBlock2,
+__kernel void mtp_yloop(__global unsigned int* pData, __global const ulong4  * __restrict__ DBlock,
 	__global uint4 * Elements, __global uint32_t * __restrict__ SmallestNonce, uint pTarget)
 {
 
@@ -574,10 +714,12 @@ __kernel void mtp_yloop(__global unsigned int* pData, __global const ulong2  * _
 	uint32_t event_thread = get_global_id(0) - get_global_offset(0); //thread / ThreadNumber;
 
 	uint32_t NonceIterator = get_global_id(0);
-	int lane = get_local_id(0) % 8;
-	int warp = get_local_id(0) / 8;;//warp_id();
-	__local  ulong2 far[TPB_MTP / 8][8 * (8 + SHR_OFF)];
-	__local  uint32_t farIndex[TPB_MTP / 8][8];
+
+//	int lane = get_local_id(0) % 4;
+	int lane = lane_id() % 4;
+	int warp = get_local_id(0) / 4;;//warp_id();
+	__local  ulong4 far[TPB_MTP / 4][4 * (4 + SHR_OFF)];
+	__local  uint32_t farIndex[TPB_MTP / 4][4];
 	const uint32_t half_memcost = 2 * 1024 * 1024;
 	const uint64_t lblakeFinal[8] =
 	{
@@ -618,15 +760,15 @@ __kernel void mtp_yloop(__global unsigned int* pData, __global const ulong2  * _
 	{
 
 #pragma unroll
-		for (int t = 0; t<2; t++) {
-			ulong2 *D = (ulong2*)&YLocal;
-			FARLOAD(t + 6) = D[t];
+		for (int t = 0; t<1; t++) {
+			ulong4 *D = (ulong4*)&YLocal;
+			FARLOAD(t + 3) = D[t];
 
 		}
 		farIndex[warp][lane] = YLocal.s0 & 0x3FFFFF;
 		barrier(CLK_LOCAL_MEM_FENCE);
 
-		ulong8 DataChunk[2];
+//		ulong8 DataChunk[2];
 		uint32_t len = 0;
 
 		uint16 DataTmp; uint2 * blake_init = (uint2*)&DataTmp;
@@ -639,9 +781,9 @@ __kernel void mtp_yloop(__global unsigned int* pData, __global const ulong2  * _
 		for (int i = 0; i < 9; i++) {
 			int last = (i == 8);
 #pragma unroll
-			for (int t = 0; t<2; t++) {
-				ulong2 *D = (ulong2*)&YLocal;
-				D[t] = FARLOAD(t + 6);
+			for (int t = 0; t<1; t++) {
+				ulong4 *D = (ulong4*)&YLocal;
+				D[t] = FARLOAD(t + 3);
 			}
 
 
@@ -651,28 +793,19 @@ __kernel void mtp_yloop(__global unsigned int* pData, __global const ulong2  * _
 			{
 
 
-#pragma unroll 
-				for (int t = 0; t<8; t++) {
+				#pragma unroll 
+				for (int t = 0; t<4; t++) {
 
-					__global const ulong2 * __restrict__ farP = (farIndex[warp][t]<half_memcost) ? &DBlock[farIndex[warp][t] * 64 + 8 * i]
-						:																		   &DBlock2[(farIndex[warp][t] - half_memcost) * 64 + 8 * i];
+					__global const ulong4 * __restrict__ farP = &DBlock[farIndex[warp][t] * 32 + 4 * i];
 
-					far[warp][lane*(8 + SHR_OFF) + (t)] = (last) ? (ulong2)(0, 0) : vload2(0,(__global const ulong * __restrict__)&farP[lane]);
+					far[warp][lane*(4 + SHR_OFF) + (t)] = (last) ? (ulong4)(0, 0, 0,0) :farP[lane];
 				}
 
 				barrier(CLK_LOCAL_MEM_FENCE);
 			}
 
-#pragma unroll
-			for (int t = 0; t<6; t++) {
-				ulong2 *D = (ulong2*)DataChunk;
-				D[t + 2] = (FARLOAD(t));
-			}
-			((uint16*)DataChunk)[0].lo = YLocal;
+			blake2b_compress2b_new( (uint64_t*)&DataTmp, far[warp],(uint64_t*)&YLocal, len, last);
 
-			//	uint16 DataTmp2;
-			blake2b_compress2b(/*(uint64_t*)&DataTmp2,*/ (uint64_t*)&DataTmp, (uint64_t*)DataChunk, len, last);
-			//	DataTmp = DataTmp2;
 		}
 
 		YLocal = DataTmp.lo;
@@ -957,7 +1090,7 @@ static inline void fill_block_withIndex(__global const struct mem_blk *prev_bloc
 
 
 __attribute__((reqd_work_group_size(32, 1, 1)))
-__kernel void mtp_i(__global uint4  *  DBlock, __global uint4  *  DBlock2, __global uint32_t *block_header, uint32_t slice) {
+__kernel void mtp_i(__global uint4  *  DBlock, __global uint32_t *block_header, uint32_t slice) {
 	uint32_t prev_offset, curr_offset;
 
 	uint64_t  ref_index, ref_lane;
@@ -972,7 +1105,7 @@ __kernel void mtp_i(__global uint4  *  DBlock, __global uint4  *  DBlock2, __glo
 	const uint32_t lanes = 4;
 	uint32_t index;
 	__global struct mem_blk * memory = (__global struct mem_blk *)DBlock;
-	__global struct mem_blk * memory2 = (__global struct mem_blk *)DBlock2;
+
 	uint32_t tid = (uint32_t)get_local_id(0);
 
 
@@ -1016,7 +1149,7 @@ __kernel void mtp_i(__global uint4  *  DBlock, __global uint4  *  DBlock2, __glo
 			prev_offset = curr_offset - 1;
 		}
 
-		uint2  pseudo_rand2 = (prev_offset<half_memcost) ? as_uint2(memory[prev_offset].v[0]) : as_uint2(memory2[prev_offset - half_memcost].v[0]);
+		uint2  pseudo_rand2 =as_uint2(memory[prev_offset].v[0]);
 		ref_lane = ((pseudo_rand2.y)) & 3;
 
 		if ((passs == 0) && (slice == 0))
@@ -1027,9 +1160,9 @@ __kernel void mtp_i(__global uint4  *  DBlock, __global uint4  *  DBlock2, __glo
 
 		TheBlockIndex = (ref_lane << 20) + ref_index;
 
-		__global struct mem_blk *  prevblk = (prev_offset<half_memcost) ? &memory[prev_offset] : &memory2[prev_offset - half_memcost];
-		__global struct mem_blk *  refblk = (((ref_lane << 20) + ref_index)<half_memcost) ? &memory[(ref_lane << 20) + ref_index] : &memory2[(ref_lane << 20) + ref_index - half_memcost];
-		__global struct mem_blk *  curblk = (curr_offset<half_memcost) ? &memory[curr_offset] : &memory2[curr_offset - half_memcost];
+		__global struct mem_blk *  prevblk = &memory[prev_offset];
+		__global struct mem_blk *  refblk = &memory[(ref_lane << 20) + ref_index];
+		__global struct mem_blk *  curblk = &memory[curr_offset];
 
 		//		fill_block_withIndex(memory + prev_offset, memory + (ref_lane << 20) + ref_index, &memory[curr_offset], 0, BH, (uint32_t)TheBlockIndex);
 		fill_block_withIndex(prevblk, refblk, curblk, 0, BH, (uint32_t)TheBlockIndex);
@@ -1042,7 +1175,7 @@ __kernel void mtp_i(__global uint4  *  DBlock, __global uint4  *  DBlock2, __glo
 
 
 __attribute__((reqd_work_group_size(256, 1, 1)))
-__kernel void mtp_fc(uint32_t threads, __global uint4  *  __restrict__ DBlock, __global uint4  *  __restrict__ DBlock2, __global uint2 *a) {
+__kernel void mtp_fc(uint32_t threads, __global uint4  *  __restrict__ DBlock, __global uint2 *a) {
 
 	uint32_t thread = get_global_id(0);
 	const uint32_t half_memcost = 2 * 1024 * 1024;
@@ -1062,7 +1195,7 @@ __kernel void mtp_fc(uint32_t threads, __global uint4  *  __restrict__ DBlock, _
 
 	if (thread < threads) {
 
-		__global const uint4 *    __restrict__ GBlock = (thread<half_memcost) ? &DBlock[thread * 64] : &DBlock2[(thread - half_memcost) * 64];
+		__global const uint4 *    __restrict__ GBlock = &DBlock[thread * 64];
 
 
 		//		__global const uint4 *    __restrict__ GBlock = &DBlock[0];

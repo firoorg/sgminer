@@ -1176,22 +1176,6 @@ static cl_int queue_ethash_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_u
   return status;
 }
 
-/*
-void get_argon_block(cl_command_queue Queue, cl_mem block, cl_mem block2, uint8_t* clblock, uint32_t index)
-{
-	size_t TheSize = 128*sizeof(uint64_t);
-	size_t TheOffSet = 128*sizeof(uint64_t)*index;
-	size_t Shift = 2 * 1024 * 1024 * 128 * sizeof(uint64_t);
-	cl_int status;
-if (index < 2 * 1024 * 1024)
-	status = clEnqueueReadBuffer(Queue, block, CL_TRUE, TheOffSet, TheSize, clblock, 0, NULL, NULL);
-else 
-	status = clEnqueueReadBuffer(Queue, block2, CL_TRUE, TheOffSet-Shift, TheSize, clblock, 0, NULL, NULL);
-	if (status != CL_SUCCESS) {
-		applog(LOG_ERR, "reading %d with writing to CLbuffer0.", status);
-	}
-}
-*/
 
 
 static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unused cl_uint threads)
@@ -1569,14 +1553,7 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 
 	if (test != 0)
 	{  // do initialization
-	   /*
-	   printf("*********** INIT MTP**************\n");
-
-	   if (buffer->prev_job_id == NULL) {
-	   mtp = (mtp_cache_t*)malloc(sizeof(mtp_cache_t));
-	   }
-	   */
-	   /////////////////////////////////////////////////
+ 
 		int TED = 0;
 		for (int i = 0; i< total_devices; i++)
 			if (devices_enabled[i]) TED++;
@@ -1594,19 +1571,16 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 		////////////////////////////////////////////////
 		if (buffer->prev_job_id != NULL) {
 
-			//		free_memory(&mtp->context, (unsigned char *)mtp->instance.memory, mtp->instance.memory_argon_blocks, sizeof(argon_block));
-
 			free(mtp->instance.memory);
 			//			mtp->ordered_tree->Destructor();
 			call_MerkleTree_Destructor(mtp->ordered_tree);
 			free(mtp->dx);
 			//		delete  mtp->ordered_tree;
 			clReleaseMemObject(buffer->hblock);
-			clReleaseMemObject(buffer->hblock2);
 			clReleaseMemObject(buffer->tree);
 			clReleaseMemObject(buffer->blockheader);
 			clReleaseMemObject(buffer->root);
-			clReleaseMemObject(buffer->YLocal);
+
 		}
 
 
@@ -1614,22 +1588,8 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 		////////////
 		size_t hbs_half = 2 * 1024 * 1024 * 128 * sizeof(uint64_t);
 		size_t hbs = 4 * 1024 * 1024 * 128 * sizeof(uint64_t);
-		//			size_t hbs = 4244635648;
-		/*
-		buffer->hblock		= clCreateBuffer(clState->context, CL_MEM_READ_WRITE , hbs, NULL, &status);
-		if (status != CL_SUCCESS) {
-		buffer->hblock = NULL;
-		applog(LOG_ERR, "Error %d while creating the hblock buffers.", status);
-		return status;
-		}
-		*/
-		buffer->hblock = clCreateBuffer(clState->context, CL_MEM_READ_WRITE, hbs_half, NULL, &status);
-		if (status != CL_SUCCESS) {
-			buffer->hblock = NULL;
-			applog(LOG_ERR, "Error %d while creating the hblock buffers.", status);
-			return status;
-		}
-		buffer->hblock2 = clCreateBuffer(clState->context, CL_MEM_READ_WRITE, hbs_half, NULL, &status);
+	
+		buffer->hblock = clCreateBuffer(clState->context, CL_MEM_READ_WRITE, hbs, NULL, &status);
 		if (status != CL_SUCCESS) {
 			buffer->hblock = NULL;
 			applog(LOG_ERR, "Error %d while creating the hblock buffers.", status);
@@ -1684,19 +1644,19 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 		if (status != CL_SUCCESS)
 			applog(LOG_ERR, "problem copying instance to hblock", status);
 
-		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock2, true, TheOffSet * 2097152 - hbs_half, TheSize, (uchar*)mtp->instance.memory[4].v, 0, NULL, NULL);
+		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock, true, TheOffSet * 2097152, TheSize, (uchar*)mtp->instance.memory[4].v, 0, NULL, NULL);
 		if (status != CL_SUCCESS)
 			applog(LOG_ERR, "problem copying instance to hblock2", status);
 
-		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock2, true, TheOffSet * 2097153 - hbs_half, TheSize, (uchar*)mtp->instance.memory[5].v, 0, NULL, NULL);
+		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock, true, TheOffSet * 2097153, TheSize, (uchar*)mtp->instance.memory[5].v, 0, NULL, NULL);
 		if (status != CL_SUCCESS)
 			applog(LOG_ERR, "problem copying instance to hblock2", status);
 
-		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock2, true, TheOffSet * 3145728 - hbs_half, TheSize, (uchar*)mtp->instance.memory[6].v, 0, NULL, NULL);
+		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock, true, TheOffSet * 3145728, TheSize, (uchar*)mtp->instance.memory[6].v, 0, NULL, NULL);
 		if (status != CL_SUCCESS)
 			applog(LOG_ERR, "problem copying instance to hblock2", status);
 
-		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock2, true, TheOffSet * 3145729 - hbs_half, TheSize, (uchar*)mtp->instance.memory[7].v, 0, NULL, NULL);
+		status |= clEnqueueWriteBuffer(clState->commandQueue, buffer->hblock, true, TheOffSet * 3145729, TheSize, (uchar*)mtp->instance.memory[7].v, 0, NULL, NULL);
 		if (status != CL_SUCCESS)
 			applog(LOG_ERR, "problem copying instance to hblock2", status);
 
@@ -1712,7 +1672,6 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 		size_t Global = 128;
 		size_t Local = 32;
 		CL_SET_ARG(buffer->hblock);
-		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->blockheader);
 		CL_SET_ARG(slice);
 		status |= clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_0, 1, NULL, &Global, &Local, 0, NULL, NULL);
@@ -1724,7 +1683,6 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 
 		slice = 1;
 		CL_SET_ARG(buffer->hblock);
-		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->blockheader);
 		CL_SET_ARG(slice);
 		status |= clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_1, 1, NULL, &Global, &Local, 0, NULL, NULL);
@@ -1736,7 +1694,6 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 		kernel = &clState->mtp_2;
 		slice = 2;
 		CL_SET_ARG(buffer->hblock);
-		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->blockheader);
 		CL_SET_ARG(slice);
 		status |= clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_2, 1, NULL, &Global, &Local, 0, NULL, NULL);
@@ -1748,7 +1705,6 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 		kernel = &clState->mtp_3;
 		slice = 3;
 		CL_SET_ARG(buffer->hblock);
-		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->blockheader);
 		CL_SET_ARG(slice);
 		status |= clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_3, 1, NULL, &Global, &Local, 0, NULL, NULL);
@@ -1762,7 +1718,6 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 		slice = 4194304;
 		CL_SET_ARG(slice);
 		CL_SET_ARG(buffer->hblock);
-		CL_SET_ARG(buffer->hblock2);
 		CL_SET_ARG(buffer->tree);
 		size_t Global2 = 4194304;
 		size_t Local2 = 256;
@@ -1805,36 +1760,15 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 
 	size_t p_global_work_offset = buffer->StartNonce;
 	uint32_t rawint = 2 << (blk->work->thr->cgpu->intensity - 1);
-
-
-	size_t tsy = sizeof(uint32_t) * 8 * rawint;
-	buffer->YLocal = clCreateBuffer(clState->context, CL_MEM_READ_WRITE, tsy, NULL, &status);
-	if (status != CL_SUCCESS) {
-		buffer->tree = NULL;
-		applog(LOG_ERR, "Error %d while creating the YLocal buffers.", status);
-		return status;
-	}
-
-
-	kernel = &clState->mtp_yloop_init;
+	kernel = &clState->mtp_yloop;
 	size_t Global2 = rawint; //1048576; //65536;
 	size_t Local2 = worksize;
 	size_t buffersize = 1024;
+
 	num = 0;
 	CL_SET_ARG(clState->CLbuffer0);
-	CL_SET_ARG(buffer->YLocal);
-	CL_SET_ARG(buffer->root);
-
-	status1 = clEnqueueNDRangeKernel(clState->commandQueue, clState->mtp_yloop_init, 1, &p_global_work_offset, &Global2, &Local2, 0, NULL, NULL);
-	if (status1 != CL_SUCCESS) {
-		applog(LOG_ERR, "Error %d with kernel mtp_yloop_init.", status1);
-	}
-	kernel = &clState->mtp_yloop;
-	num = 0;
-
 	CL_SET_ARG(buffer->hblock);
-	CL_SET_ARG(buffer->hblock2);
-	CL_SET_ARG(buffer->YLocal);
+	CL_SET_ARG(buffer->root);
 	CL_SET_ARG(clState->outputBuffer);
 	CL_SET_ARG(le_target);
 	uint32_t Solution[256];
@@ -1855,11 +1789,11 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 		unsigned char mtpHashValue[32];
 		argon_blockS nBlockMTP[MTP_L * 2] = { 0 };
 		unsigned char nProofMTP[MTP_L * 3 * 353] = { 0 };
-		//		printf("MTP Found a Nonce = %08x\n",Solution[0]);
+		applog(LOG_DEBUG,"MTP Found a Nonce = %08x   thr_id = %d",Solution[0], (blk->work->thr->id));
 
 
 
-		uint32_t is_sol = mtp_solver(0, clState->commandQueue, buffer->hblock, buffer->hblock2, Solution[0],
+		uint32_t is_sol = mtp_solver_short(0, clState->commandQueue, buffer->hblock,  Solution[0],
 			&mtp->instance, nBlockMTP, nProofMTP, mtp->TheMerkleRoot, mtpHashValue, mtp->ordered_tree, endiandata, (uint256*)ptarget);
 		if (is_sol == 1) {
 			memcpy(pool->mtp_cache.mtpPOW.MerkleRoot, mtp->TheMerkleRoot, 16);
@@ -1870,12 +1804,15 @@ static cl_int queue_mtp_kernel2(_clState *clState, dev_blk_ctx *blk, __maybe_unu
 			memcpy(pool->mtp_cache.mtpPOW.nProofMTP, nProofMTP, sizeof(unsigned char)* MTP_L * 3 * 353);
 			pool->mtp_cache.mtpPOW.TheNonce = Solution[0];
 			((uint32_t*)blk->work->data)[19] = Solution[0];
-			//			printf("*************************************************************************************Found a solution\n");
+			memcpy(blk->work->hash, mtpHashValue, 32);
+			Solution[0xff] = 1; // avoid duplicate ?
 		}
 		else {
 			Solution[0xff] = 0;
+			hw_errors++;
+			blk->work->thr->cgpu->hw_errors++;
+			blk->work->thr->cgpu->drv->hw_error(blk->work->thr);
 			status1 = clEnqueueWriteBuffer(clState->commandQueue, clState->outputBuffer, CL_TRUE, 0, buffersize, Solution, 0, NULL, NULL);
-			printf("*************************************************************************************Not a solution\n");
 		}
 	}
 	//	clFinish(clState->commandQueue);
@@ -2082,13 +2019,9 @@ static algorithm_settings_t algos[] = {
   { "lyra2rev2", ALGO_LYRA2REV2, "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 6, -1, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, lyra2rev2_regenhash, precalc_hash_blake256, queue_lyra2rev2_kernel, gen_hash, append_neoscrypt_compiler_options },
   { "lyra2Z"   , ALGO_LYRA2Z   , "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, lyra2Z_regenhash   , precalc_hash_blake256, queue_lyra2z_kernel   , gen_hash, NULL },
   { "lyra2h"   , ALGO_LYRA2H   , "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 1, 0,0, lyra2h_regenhash   , precalc_hash_blake256, queue_lyra2h_kernel   , gen_hash, NULL },
-  { "mtp"           , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-  { "mtp_vega"      , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-  { "mtp_nvidia"    , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-  { "mtp_nvidia2"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-  { "mtp_nvidia3"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-  { "mtp_nvidia4"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
-  { "mtp_nvidia5"   , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp"         , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp_vega"    , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel   , gen_hash, NULL },
+  { "mtp_nvidia"  , ALGO_MTP   , "", 1, 1, 1, 0, 0, 0xFF, 0xFFFFFFFFULL, 0x0000ffffUL, 1, 0,0, mtp_regenhash   , NULL, queue_mtp_kernel2  , gen_hash, NULL },
   // kernels starting from this will have difficulty calculated by using fuguecoin algorithm
 #define A_FUGUE(a, b, c) \
   { a, ALGO_FUGUE, "", 1, 256, 256, 0, 0, 0xFF, 0xFFFFULL, 0x0000ffffUL, 0, 0, CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE, b, NULL, queue_sph_kernel, c, NULL }

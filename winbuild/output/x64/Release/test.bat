@@ -12,6 +12,6 @@ rem sgminer.exe --kernel mtp   -o stratum+tcp://zcoin.mintpond.com:3000  -u  aDn
 
 rem sgminer.exe --device 0,1 --kernel mtp_nvidia2  -o stratum+tcp://zcoin.mintpond.com:3000  -u  aDn7MMYjVQqenT11VFDYHfFdwXmSTRUTak.worker -p 0,strict,verbose,d=700 --intensity 22   --worksize 256 
 
-sgminer.exe 
+sgminer.exe --ndevs
 
 pause

@@ -6428,7 +6428,7 @@ static void *stratum_sthread_bos(void *userdata)
 	uint32_t SizeBlockMTP = MTP_L * 2 * 128 * 8;
 	uint32_t SizeProofMTP = MTP_L * 3 * 353;
 	uint32_t ntime;
-
+    uint32_t prev_nonce = 0;
 
 
 	while (42) {
@@ -6479,6 +6479,8 @@ static void *stratum_sthread_bos(void *userdata)
 			*((uint64_t *)nonce2) = htole64(work->nonce2);
 			applog(LOG_DEBUG, "stratum_sthread_bos THE NONCE %08x ", nonce);
 
+            
+
 			mutex_lock(&sshare_lock);
 			/* Give the stratum share a unique id */
 			sshare->id = swork_id++;
@@ -6517,7 +6519,7 @@ static void *stratum_sthread_bos(void *userdata)
 				json_decref(MyObject);
 		
 
-		applog(LOG_INFO, "Submitting share %08lx to %s", (long unsigned int)htole32(hash32[6]), get_pool_name(pool));
+		applog(LOG_DEBUG, "Submitting share %08lx to %s", (long unsigned int)htole32(hash32[6]), get_pool_name(pool));
 
 		/* Try resubmitting for up to 2 minutes if we fail to submit
 		* once and the stratum pool nonce1 still matches suggesting
@@ -6526,6 +6528,13 @@ static void *stratum_sthread_bos(void *userdata)
 			bool sessionid_match;
 
 			mutex_lock(&sshare_lock);
+			if (prev_nonce == nonce) {
+				applog(LOG_DEBUG, "***************resubmitting a nonce which has been submitted nonce %08x prev_nonce %08x", prev_nonce, nonce);
+				submitted = true;
+				mutex_unlock(&sshare_lock);
+				break;
+			}
+
 			if (likely(stratum_send_bos(pool, (char*)serialized->data, serialized->size))) {
 				int ssdiff;
 				if (serialized != NULL)
@@ -6536,14 +6545,14 @@ static void *stratum_sthread_bos(void *userdata)
 				sshare->sshare_sent = time(NULL);
 				ssdiff = sshare->sshare_sent - sshare->sshare_time;
 				if (opt_debug || ssdiff > 0) {
-					applog(LOG_INFO, "Pool %d stratum share submission lag time %d seconds",
+					applog(LOG_WARNING, "Pool %d stratum share submission lag time %d seconds",
 						pool->pool_no, ssdiff);
 				}
 			
 				HASH_ADD_INT(stratum_shares, id, sshare);
 				pool->sshares++;
 				mutex_unlock(&sshare_lock);
-
+                prev_nonce = nonce;  // make sure a nonce which has been already submitted is not submitted a second time
 				applog(LOG_DEBUG, "Successfully submitted, adding to stratum_shares db");
 				submitted = true;
 				break;
@@ -6551,8 +6560,9 @@ static void *stratum_sthread_bos(void *userdata)
 			else {
 				mutex_unlock(&sshare_lock);
 			}
+
 			if (!pool_tset(pool, &pool->submit_fail) && cnx_needed(pool)) {
-				applog(LOG_WARNING, "%s stratum share submission failure", get_pool_name(pool));
+				applog(LOG_DEBUG, "%s stratum share submission failure", get_pool_name(pool));
 				total_ro++;
 				pool->remotefail_occasions++;
 			}
