@@ -67,11 +67,11 @@
 
 #endif
 
-#define VERSION "v0.1.1"
+#define VERSION "v0.1.2-djm34"
 #define PACKAGE_NAME "sgminer"
 #define PACKAGE_TARNAME "sgminer"
-#define PACKAGE_VERSION "v0.1.1"
-#define PACKAGE_STRING "sgminer v0.1.1"
+#define PACKAGE_VERSION "v0.1.2-djm34"
+#define PACKAGE_STRING "sgminer v0.1.2"
 #define PACKAGE "sgminer"
 
 #define SGMINER_PREFIX ""

@@ -53,10 +53,11 @@ static char *file_contents(const char *filename, int *length)
 
 // This should NOT be in here! -- Wolf9466
 void set_base_compiler_options(build_kernel_data *data) 
-{
-//data->work_size = 4; 
-  char buf[255];
-  sprintf(data->compiler_options, "-I \"%s\" -I \"%s/kernel\" -I \".\" -D WORKSIZE=%d",
+{    
+//data->work_size = 4;  
+  char buf[255]; 
+//  -cl-std=CL2.0 -cl-uniform-work-group-size -cl-mad-enable 
+  sprintf(data->compiler_options, " -cl-std=CL2.0  -cl-uniform-work-group-size -fbin-encrypt -I \"%s\" -I \"%s/kernel\" -I \".\" -D WORKSIZE=%d",
       data->sgminer_path, data->sgminer_path, (int)data->work_size);
   applog(LOG_DEBUG, "Setting worksize to %d", (int)(data->work_size));
 
@@ -85,7 +86,8 @@ cl_program build_opencl_kernel(build_kernel_data *data, const char *filename)
   if (!source)
     goto out;
 
-  program = clCreateProgramWithSource(data->context, 1, (const char **)&source, sourceSize, &status);
+ program = clCreateProgramWithSource(data->context, 1, (const char **)&source, sourceSize, &status);
+
   if (status != CL_SUCCESS) {
     applog(LOG_ERR, "Error %d: Loading Binary into cl_program (clCreateProgramWithSource)", status);
     goto out;

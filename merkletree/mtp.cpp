@@ -40,6 +40,27 @@ void get_argon_block(cl_command_queue Queue, cl_mem block, cl_mem block2, uint8_
 
 }
 
+void get_argon_block_old(cl_command_queue Queue, cl_mem block, cl_mem block2, uint8_t* clblock, uint32_t index)
+{
+	size_t TheSize = 16 * sizeof(uint64_t);
+	size_t TheOffSet = 16 * sizeof(uint64_t)*index;
+	size_t Shift = 2 * 1024 * 1024 * 128 * sizeof(uint64_t);
+	cl_int status;
+
+	for (int i=0;i<4;i++) {
+		uint8_t * blocksifter = &clblock[i * 16 * 8];
+		size_t TheNewOff = TheOffSet + i * (4 * 1024 * 1024) * 16 * 8;
+		status = clEnqueueReadBuffer(Queue, block, CL_TRUE, TheNewOff, TheSize, blocksifter, 0, NULL, NULL);
+	}
+
+	for (int i = 0; i<4; i++) {
+		uint8_t * blocksifter = &clblock[(i+4) * 16 * 8];
+		size_t TheNewOff = TheOffSet + i * (4 * 1024 * 1024) * 16 * 8;
+		status = clEnqueueReadBuffer(Queue, block2, CL_TRUE, TheNewOff, TheSize, blocksifter, 0, NULL, NULL);
+	}
+
+}
+
 void get_argon_block_short(cl_command_queue Queue, cl_mem block, uint8_t* clblock, uint32_t index)
 {
 	size_t TheSize = 128 * sizeof(uint64_t);

@@ -55,6 +55,7 @@ __constant uint4 Elements[1];
 #define UINT64_C(x)  (x ## UL)
 #define devectorize(x) as_ulong(x)
 #define vectorize(x) as_uint2(x)
+#define SWAP32(x) as_ulong(as_uint2(x).s10)
 
 static __constant 	const uint64_t blakeIV_[8] = {
 		0x6a09e667f3bcc908UL,
@@ -195,7 +196,7 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 #define GS(a,b,c,d,e,f) \
    { \
      v[a] +=   v[b] + m[e]; \
-     v[d] = eorswap64(v[d] , v[a]); \
+     v[d] = SWAP32(v[d] ^ v[a]); \
      v[c] += v[d]; \
      v[b] = ROTR64X(v[b] ^ v[c], 24); \
      v[a] += v[b] + m[f]; \
@@ -257,7 +258,7 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 #define G(r,i,a,b,c,d) \
    { \
      v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
-     v[d] = eorswap64(v[d] , v[a]); \
+     v[d] = SWAP32(v[d] ^ v[a]); \
      v[c] += v[d]; \
      v[b] = ROTR64X(v[b] ^ v[c], 24); \
      v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
@@ -331,7 +332,7 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 #define G(r,i,a,b,c,d) \
    { \
      v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
-     v[d] = eorswap64(v[d] , v[a]); \
+     v[d] = SWAP32(v[d] ^ v[a]); \
      v[c] += v[d]; \
      v[b] = ROTR64X(v[b] ^ v[c], 24); \
      v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
@@ -374,7 +375,7 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 }
 
 
- static inline  int blake2b_compress4xv2(uint64_t *hash, const uint64_t *hzcash, const uint64_t block[16], const uint32_t len, int last)
+ static inline  int blake2b_compress4xv2(uint64_t *hash, const uint64_t *hzcash, const uint64_t *block, const uint32_t len, int last)
  {
 	 uint64_t m[16];
 	 uint64_t v[16];
@@ -411,7 +412,7 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 #define G(r,i,a,b,c,d) \
    { \
      v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
-     v[d] = eorswap64(v[d] , v[a]); \
+     v[d] = SWAP32(v[d] ^ v[a]); \
      v[c] += v[d]; \
      v[b] = ROTR64X(v[b] ^ v[c], 24); \
      v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
@@ -477,7 +478,7 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 #define G(r,i,a,b,c,d) \
    { \
      v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
-     v[d] = eorswap64(v[d] , v[a]); \
+     v[d] = SWAP32(v[d] ^ v[a]); \
      v[c] += v[d]; \
      v[b] = ROTR64X(v[b] ^ v[c], 24); \
      v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
@@ -500,7 +501,7 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 #define H(r,i,a,b,c,d) \
    { \
      v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
-     v[d] = eorswap64(v[d] , v[a]); \
+     v[d] = SWAP32(v[d] ^ v[a]); \
      v[c] += v[d]; \
      v[b] = ROTR64X(v[b] ^ v[c], 24); \
      v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
@@ -600,7 +601,7 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 #define G(r,i,a,b,c,d) \
    { \
      v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
-     v[d] = eorswap64(v[d] , v[a]); \
+     v[d] = SWAP32(v[d] ^ v[a]); \
      v[c] += v[d]; \
      v[b] = ROTR64X(v[b] ^ v[c], 24); \
      v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
@@ -623,7 +624,7 @@ static inline uint64_t eorswap64(uint64_t u, uint64_t v)
 #define H(r,i,a,b,c,d) \
    { \
      v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
-     v[d] = eorswap64(v[d] , v[a]); \
+     v[d] = SWAP32(v[d] ^ v[a]); \
      v[c] += v[d]; \
      v[b] = ROTR64X(v[b] ^ v[c], 24); \
      v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
@@ -771,15 +772,39 @@ __kernel void mtp_yloop( __global const ulong2  * __restrict__ DBlock, __global 
 __global uint8  *  GYlocal, __global uint32_t * __restrict__ SmallestNonce,  uint pTarget)	
 */	
 {	
-	
-	uint32_t NonceNumber = 1;  // old
-	uint32_t ThreadNumber = 1;
+#define G(r,i,a,b,c,d) \
+   { \
+     v[a] +=   v[b] + (m[blake2b_sigma[r][2*i+0]]); \
+     v[d] = SWAP32(v[d] ^ v[a]); \
+     v[c] += v[d]; \
+	 v[b] ^=v[c]; \
+     v[b] = as_ulong(amd_bitalign(as_uint2(v[b]).s10, as_uint2(v[b]), (24))); \
+     v[a] += v[b] + (m[blake2b_sigma[r][2*i+1]]); \
+	 v[d] ^=v[a]; \
+     v[d] = as_ulong(amd_bitalign(as_uint2(v[d]).s10, as_uint2(v[d]), (16))); \
+     v[c] += v[d]; \
+	 v[b] ^=v[c]; \
+     v[b] = as_ulong(amd_bitalign(as_uint2(v[b]), as_uint2(v[b]).s10, (31))); \
+  } 
+#define ROUND(r)  \
+  { \
+    G(r,0, 0,4,8,12); \
+    G(r,1, 1,5,9,13); \
+    G(r,2, 2,6,10,14); \
+    G(r,3, 3,7,11,15); \
+    G(r,4, 0,5,10,15); \
+    G(r,5, 1,6,11,12); \
+    G(r,6, 2,7,8,13); \
+    G(r,7, 3,4,9,14); \
+  } 
+	uint64_t m[16] = { 0 };
+	uint64_t v[16];
+
 	uint32_t event_thread = get_global_id(0) - get_global_offset(0); //thread / ThreadNumber;
 
 	uint32_t NonceIterator = get_global_id(0);
 
  
-//		ulong2 FarReg[8]; 
 	 uint32_t farIndex;
 	const uint32_t half_memcost = 2 * 1024 * 1024;
 	 const uint64_t lblakeFinal[8] =
@@ -793,78 +818,131 @@ __global uint8  *  GYlocal, __global uint32_t * __restrict__ SmallestNonce,  uin
 		0x1f83d9abfb41bd6bUL,
 		0x5be0cd19137e2179UL, 
 	};
-	
-		 uint64_t DataChunk[16] = {0};
+	 const uint64_t blakeIV_[8] = {
+		 0x6a09e667f3bcc908UL,
+		 0xbb67ae8584caa73bUL,
+		 0x3c6ef372fe94f82bUL,
+		 0xa54ff53a5f1d36f1UL,
+		 0x510e527fade682d1UL,
+		 0x9b05688c2b3e6c1fUL,
+		 0x1f83d9abfb41bd6bUL,
+		 0x5be0cd19137e2179UL
+	 };
+
 	 uint8 YLocal; // = GYlocal[event_thread] ;
 
-	
-	
-		((	uint8 *)DataChunk)[0] = ((__global uint8 *)pData)[0];
-		((	uint8 *)DataChunk)[1] = ((__global uint8 *)pData)[1];
+				   //	ulong8 DataChunk[2] = { 0 };
 
-		((	uint4*)DataChunk)[4] = ((__global uint4*)pData)[4];
-		((	uint4*)DataChunk)[5] = ((__global uint4*)Elements)[0];
+	 ((uint8 *)m)[0] = ((__global uint8 *)pData)[0];
+	 ((uint8 *)m)[1] = ((__global uint8 *)pData)[1];
 
-		((	uint16*)DataChunk)[1].hi.s0 = NonceIterator;
+	 ((uint4*)m)[4] = ((__global uint4*)pData)[4];
+	 ((uint4*)m)[5] = ((__global uint4*)Elements)[0];
 
-		blake2b_compress2_256((uint64_t*)&YLocal, lblakeFinal, ( uint64_t*)DataChunk, 100);
-		
-		bool init_blocks;
-		uint32_t unmatch_block;
-		//		uint32_t localIndex;
-		init_blocks = false;
-		unmatch_block = 0;
-		 uint16 DataTmp; 
-		#pragma unroll 1
-			for (int j = 1; j <= mtp_L; j++)
+	 ((uint16*)m)[1].hi.s0 = NonceIterator;
+
+	 //	blake2b_compress2_256((uint64_t*)&YLocal, lblakeFinal, (uint64_t*)DataChunk, 100);
+
+
+	 ((ulong8*)v)[0] = ((ulong8*)lblakeFinal)[0];
+	 v[8] = blakeIV_[0];
+	 v[9] = blakeIV_[1];
+	 v[10] = blakeIV_[2];
+	 v[11] = blakeIV_[3];
+	 v[12] = blakeIV_[4];
+	 v[12] ^= 100;
+	 v[13] = blakeIV_[5];
+	 v[14] = ~blakeIV_[6];
+	 v[15] = blakeIV_[7];
+
+	#pragma unroll 
+	 for (int i = 0; i<12; i++)	ROUND(i);
+
+	 ((ulong4*)&YLocal)[0] = ((ulong4*)lblakeFinal)[0] ^ ((ulong4*)v)[0] ^ ((ulong4*)v)[2];
+
+
+		#pragma unroll mtp_L
+		for (int j = 1; j <= mtp_L; j++)
 		{
 
 
 			farIndex = YLocal.s0 & 0x3FFFFF;
 	
-
-	
 			uint32_t len = 0;
 
-	
-			for (int i = 0; i<8; i++)
-				(( uint2*)&DataTmp)[i] = as_uint2(lblakeFinal[i]);
-
-			//			uint8 part;
+			ulong8 DataTmp;
+			DataTmp = ((ulong8*)lblakeFinal)[0];
 
 
-			#pragma unroll 1
+			for (int i = 0; i < 4; ++i)
+				m[i] = ((uint64_t*)&YLocal)[i];
+
+			ulong8 DataChunk[2];
+			#pragma unroll 9
 			for (int i = 0; i < 9; i++) {
 				int last = (i == 8);
  
 				len += last ? 32 : 128;
 				
-				
+				if (!last)
+				{
 					__global const ulong8 * __restrict__ farP = (farIndex<half_memcost)?  &DBlock[farIndex * 16 + 2 * i ]
 															: &DBlock2[(farIndex - half_memcost) * 16 + 2 * i];
+
+//					__global const ulong8 * __restrict__ farP = (i<4) ? &DBlock[farIndex * 2 + 2 * i * argon_memcost]
+//						: &DBlock2[farIndex * 2 + 2 * (i - 4) * argon_memcost];
 					
 					#pragma unroll 
 					for (int t = 0; t<2; t++) 
-						(( ulong8*)DataChunk)[t] = (last) ? (ulong8)(0, 0,0,0,0,0,0,0) : farP[t];
-					
+						DataChunk[t] = farP[t];
+				}
+	
 			//	(( uint16*)DataChunk)[0].lo = YLocal;
 
-				blake2b_compress2b_new((uint64_t*)&DataTmp, ( uint64_t*)DataChunk,( uint64_t*)&YLocal, len, last);
+//				blake2b_compress2b_new((uint64_t*)&DataTmp, ( uint64_t*)DataChunk,( uint64_t*)&YLocal, len, last);
 
-					YLocal = ((uint8*)DataChunk)[3];
+
+
+				((ulong4*)m)[1] = (last) ? (ulong4)(0, 0, 0, 0) : DataChunk[0].lo;
+				((ulong4*)m)[2] = (last) ? (ulong4)(0, 0, 0, 0) : DataChunk[0].hi;
+				((ulong4*)m)[3] = (last) ? (ulong4)(0, 0, 0, 0) : DataChunk[1].lo;
+
+				((ulong8*)v)[0] = DataTmp;
+
+				v[8] = blakeIV_[0];
+				v[9] = blakeIV_[1];
+				v[10] = blakeIV_[2];
+				v[11] = blakeIV_[3];
+				v[12] = blakeIV_[4];
+				v[12] ^= len;
+				v[13] = blakeIV_[5];
+				v[14] = last ? ~blakeIV_[6] : blakeIV_[6];
+				v[15] = blakeIV_[7];
+
+				#pragma unroll 
+				for (int i = 0; i<12; i++)	ROUND(i);
+
+				DataTmp ^= ((ulong8*)v)[0] ^ ((ulong8*)v)[1];
+
+				//if (last) continue;
+
+				((ulong4*)m)[0] = DataChunk[1].hi;
+
+
+//					YLocal = ((uint8*)DataChunk)[3];
 				
 			}
 
-			YLocal = DataTmp.lo;
+			YLocal = as_uint16(DataTmp).lo;
 
 		}
 
 		if (YLocal.s7 <= pTarget)
 		{
-
 			SmallestNonce[atomic_inc(SmallestNonce + 0xFF)] = NonceIterator;
 		}
-
+#undef G
+#undef ROUND
 }
 
 
