@@ -1855,7 +1855,8 @@ char *recv_line_bos(struct pool *pool)
 			MyObject2 = bos_deserialize(pool->sockbuf, &boserror);
 		}
 		else if (bos_sizeof(pool->sockbuf) > pool->sockbuf_bossize)
-			printf("missing something in message \n");
+			uint32_t tip=0;
+//			printf("missing something in message \n");
 		else
 			MyObject2 = bos_deserialize(pool->sockbuf, &boserror);
 			MyObject = recode_message(MyObject2);
@@ -1867,7 +1868,7 @@ char *recv_line_bos(struct pool *pool)
 		memmove(pool->sockbuf, pool->sockbuf + currsize, remsize);
 		pool->sockbuf_bossize = remsize;
 	}
-	else {
+	else  if (bos_sizeof(pool->sockbuf)==pool->sockbuf_bossize) {
 		pool->sockbuf[0] = '\0';
 		pool->sockbuf_bossize = 0;
 	}
@@ -1953,7 +1954,8 @@ void recv_line_bos3(json_t* MyObject, struct pool *pool)
 		recode_message2(MyObject,bos_deserialize(pool->sockbuf, &boserror));
 	}
 	else if (bos_sizeof(pool->sockbuf) > pool->sockbuf_bossize)
-		printf("missing something in message \n");
+		uint32_t tip = 0;
+//		printf("missing something in message \n");
 	else
 		recode_message2(MyObject, bos_deserialize(pool->sockbuf, &boserror));
 	
@@ -1964,7 +1966,7 @@ void recv_line_bos3(json_t* MyObject, struct pool *pool)
 		memmove(pool->sockbuf, pool->sockbuf + currsize, remsize);
 		pool->sockbuf_bossize = remsize;
 	}
-	else {
+	else if (bos_sizeof(pool->sockbuf)==pool->sockbuf_bossize) {
 		pool->sockbuf[0] = '\0';
 		pool->sockbuf_bossize = 0;
 	}
@@ -2051,7 +2053,8 @@ json_t *recv_line_bos2(struct pool *pool)
 		recode_message2(MyObject,bos_deserialize(pool->sockbuf, &boserror));
 	}
 	else if (bos_sizeof(pool->sockbuf) > pool->sockbuf_bossize)
-		printf("missing something in message \n");
+		uint32_t tip = 0;
+		//printf("missing something in message \n");
 	else
 		recode_message2(MyObject, bos_deserialize(pool->sockbuf, &boserror));
 	
@@ -2062,7 +2065,7 @@ json_t *recv_line_bos2(struct pool *pool)
 		memmove(pool->sockbuf, pool->sockbuf + currsize, remsize);
 		pool->sockbuf_bossize = remsize;
 	}
-	else {
+	else  if (bos_sizeof(pool->sockbuf)==pool->sockbuf_bossize) {
 		pool->sockbuf[0] = '\0';
 		pool->sockbuf_bossize = 0;
 	}
