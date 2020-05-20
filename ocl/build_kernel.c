@@ -57,7 +57,7 @@ void set_base_compiler_options(build_kernel_data *data)
 //data->work_size = 4;  
   char buf[255]; 
 //  -cl-std=CL2.0 -cl-uniform-work-group-size -cl-mad-enable 
-  sprintf(data->compiler_options, " -cl-std=CL2.0  -cl-uniform-work-group-size -fbin-encrypt -I \"%s\" -I \"%s/kernel\" -I \".\" -D WORKSIZE=%d",
+  sprintf(data->compiler_options, " -cl-mad-enable -cl-std=CL2.1  -cl-uniform-work-group-size -fbin-encrypt -I \"%s\" -I \"%s/kernel\" -I \".\" -D WORKSIZE=%d",
       data->sgminer_path, data->sgminer_path, (int)data->work_size);
   applog(LOG_DEBUG, "Setting worksize to %d", (int)(data->work_size));
 

@@ -1365,6 +1365,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		if (status != CL_SUCCESS) {
 			applog(LOG_ERR, "Error %d while creating the MTP buffers kernel 1.", status);
 		}
+		clFlush(clState->commandQueue);
 		num = 0;
 		kernel = &clState->mtp_1;
 
@@ -1378,6 +1379,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		if (status != CL_SUCCESS) {
 			applog(LOG_ERR, "Error %d while creating the MTP buffers kernel 2.", status);
 		}
+		clFlush(clState->commandQueue);
 		num = 0;
 		kernel = &clState->mtp_2;
 		slice = 2;
@@ -1390,6 +1392,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		if (status != CL_SUCCESS) {
 			applog(LOG_ERR, "Error %d while creating the MTP buffers kernel 3.", status);
 		}
+		clFlush(clState->commandQueue);
 		num = 0;
 		kernel = &clState->mtp_3;
 		slice = 3;
@@ -1402,6 +1405,7 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		if (status != CL_SUCCESS) {
 			applog(LOG_ERR, "Error %d while creating the MTP buffers kernel 4.", status);
 		}
+		clFlush(clState->commandQueue);
 		num = 0;
 		kernel = &clState->mtp_fc;
 
@@ -1416,6 +1420,8 @@ static cl_int queue_mtp_kernel(_clState *clState, dev_blk_ctx *blk, __maybe_unus
 		if (status != CL_SUCCESS) {
 			applog(LOG_ERR, "Error %d while creating mtp_fc kernel", status);
 		}
+		clFlush(clState->commandQueue);
+
 		size_t mtp_tree_size = 2 * 1048576 * 4 * sizeof(uint64_t);
 		clEnqueueReadBuffer(clState->commandQueue, buffer->tree, CL_TRUE, 0, mtp_tree_size, mtp->dx, 0, NULL, NULL);
 
